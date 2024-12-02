@@ -3,16 +3,39 @@ import { SerialPort } from "serialport";
 export async function detectMicrocontrollerPort(): Promise<string | null> {
   try {
     const ports = await SerialPort.list();
-    const microcontrollerPort = ports.find(
-      (port) =>
-        port.manufacturer?.toLowerCase().includes("silicon labs") || // ESP32
-        port.manufacturer?.toLowerCase().includes("espressif") || // ESP32
-        port.manufacturer?.toLowerCase().includes("arduino") || // Arduino
-        port.manufacturer?.toLowerCase().includes("wch.cn") || // CH340 chip often used with Arduino clones
-        port.manufacturer?.toLowerCase().includes("ftdi") // FTDI chip often used with Arduino
-    );
+    console.log("Available ports:", ports);
 
-    return microcontrollerPort ? microcontrollerPort.path : null;
+    // Known USB-to-Serial converter IDs
+    const knownVendorIds = [
+      "1a86", // CH340
+      "0403", // FTDI
+      "10c4", // Silicon Labs CP210x
+      "1781", // Multiple Arduino vendors
+    ];
+
+    // First try to find a port by vendor ID
+    const microcontrollerPort = ports.find((port) => {
+      // Convert vendorId to lowercase if it exists
+      const vendorId = port.vendorId?.toLowerCase();
+      return vendorId && knownVendorIds.includes(vendorId);
+    });
+
+    if (microcontrollerPort) {
+      return microcontrollerPort.path;
+    }
+
+    // Fallback: look for common USB serial port patterns
+    const serialPort = ports.find((port) => {
+      const path = port.path.toLowerCase();
+      return (
+        path.includes("usbserial") ||
+        path.includes("cu.wchusbserial") ||
+        path.includes("ttyusb") ||
+        path.includes("ttyacm")
+      );
+    });
+
+    return serialPort ? serialPort.path : null;
   } catch (error) {
     console.error("Error detecting microcontroller port:", error);
     return null;
