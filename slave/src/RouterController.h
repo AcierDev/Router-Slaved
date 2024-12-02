@@ -32,6 +32,7 @@ class RouterController {
   // Cylinder states
   bool pushCylinderState;
   bool riserCylinderState;
+  bool ejectionCylinderState;
 
   void updateState();
   void startCycle();
@@ -39,12 +40,12 @@ class RouterController {
   void deactivatePushCylinder();
   void activateRiserCylinder();
   void deactivateRiserCylinder();
-  bool isSensor1Active();
   void startAnalysis();
   void handleAnalysisResponse(bool eject);
   void abortAnalysis();
   void startEjection();
   void lowerAndWait();
+  void broadcastState();
 
  public:
   RouterController();
@@ -55,6 +56,8 @@ class RouterController {
   RouterState getState() const { return currentState; }
   bool isPushCylinderActive() const { return pushCylinderState; }
   bool isRiserCylinderActive() const { return riserCylinderState; }
+  bool isEjectionCylinderActive() const { return ejectionCylinderState; }
+  bool isSensor1Active();
 
   // Settings
   void setPushTime(unsigned long timeMs) { pushTime = timeMs; }
@@ -67,4 +70,8 @@ class RouterController {
   void abortCurrentAnalysis();
   unsigned long getEjectionTime() const { return ejectionTime; }
   bool isAnalysisModeEnabled() const { return analysisMode; }
+
+  void (*onStateChange)() =
+      nullptr;  // Function pointer for state change callback
+  void setStateChangeCallback(void (*callback)()) { onStateChange = callback; }
 };

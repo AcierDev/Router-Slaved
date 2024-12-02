@@ -3,6 +3,7 @@ import { SettingsManager } from "./settings/settings.js";
 import { Command, SlaveSettings, SlaveState } from "./typings/types.js";
 import { WebSocketServer } from "./websocketServer.js";
 import readline from "readline";
+import chalk from "chalk";
 
 enum RouterState {
   IDLE,
@@ -89,13 +90,13 @@ class Master {
   private handleSetCommand(params: string): void {
     const [key, value] = params.split("=").map((s) => s.trim());
     if (!key || !value) {
-      console.log("Invalid SET command. Format: SET key=value");
+      console.log(chalk.red("Invalid SET command. Format: SET key=value"));
       return;
     }
 
     const numValue = parseInt(value);
     if (isNaN(numValue)) {
-      console.log("Value must be a number");
+      console.log(chalk.red("Value must be a number"));
       return;
     }
 
@@ -108,7 +109,7 @@ class Master {
         settings.riserTime = numValue;
         break;
       default:
-        console.log("Unknown setting:", key);
+        console.log(chalk.red("Unknown setting:"), key);
         return;
     }
 
@@ -116,25 +117,28 @@ class Master {
     const updatedSettings = this.settingsManager.getSettings();
     this.serial.sendSettings(updatedSettings);
     this.wss.broadcastSettings(updatedSettings);
+    console.log(chalk.green("Settings updated successfully"));
   }
 
   private showHelp(): void {
-    console.log(`
+    console.log(
+      chalk.cyan(`
 Available Commands:
-  STATUS      - Show current state
-  SETTINGS    - Show current settings
-  SET key=value - Update settings (e.g., SET pushTime=3000)
-  HELP        - Show this help message
-  EXIT/QUIT   - Exit the program
+  ${chalk.yellow("STATUS")}      - Show current state
+  ${chalk.yellow("SETTINGS")}    - Show current settings
+  ${chalk.yellow("SET key=value")} - Update settings (e.g., SET pushTime=3000)
+  ${chalk.yellow("HELP")}        - Show this help message
+  ${chalk.yellow("EXIT/QUIT")}   - Exit the program
 
 Settings:
-  pushTime    - Push cylinder activation time (ms)
-  riserTime   - Riser cylinder activation time (ms)
-    `);
+  ${chalk.green("pushTime")}    - Push cylinder activation time (ms)
+  ${chalk.green("riserTime")}   - Riser cylinder activation time (ms)
+    `)
+    );
   }
 
   private cleanup(): void {
-    console.log("Closing application...");
+    console.log(chalk.yellow("Closing application..."));
     this.rl.close();
     process.exit(0);
   }
@@ -147,35 +151,42 @@ Settings:
     this.serial.onStateUpdate((state: SlaveState) => {
       this.currentState = state;
       this.wss.broadcastState(state);
-      // Clear line and reprint prompt after state update
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
-      console.log("State Update:", JSON.stringify(state));
+      console.log(chalk.blue("State Update:"), JSON.stringify(state, null, 2));
       this.rl.prompt(true);
     });
 
     this.serial.onWarning((message: string) => {
       this.wss.broadcastWarning(message);
-      // Clear line and reprint prompt after warning
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
-      console.log("\x1b[33m%s\x1b[0m", `Warning: ${message}`); // Yellow text
+      console.log(chalk.yellow(`Warning: ${message}`));
       this.rl.prompt(true);
     });
 
     this.serial.onError((message: string) => {
       this.wss.broadcastError(message);
-      // Clear line and reprint prompt after error
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
-      console.log("\x1b[31m%s\x1b[0m", `Error: ${message}`); // Red text
+      console.log(chalk.red(`Error: ${message}`));
       this.rl.prompt(true);
+    });
+
+    // this.serial.onRawData((data: string) => {
+    //   console.log("Raw Data:", data);
+    // });
+
+    this.serial.onDebug((message: string) => {
+      // console.log(chalk.blue(`Debug: ${message}`));
     });
 
     const port = this.serial.getPort();
     if (port) {
       port.on("close", async () => {
-        console.log("Serial port closed. Attempting to reconnect...");
+        console.log(
+          chalk.yellow("Serial port closed. Attempting to reconnect...")
+        );
         await this.attemptReconnection();
       });
     }
@@ -201,16 +212,16 @@ Settings:
   }
 
   private async attemptReconnection(): Promise<void> {
-    console.log("Attempting to reconnect to microcontroller...");
+    console.log(chalk.yellow("Attempting to reconnect to microcontroller..."));
     let connected = false;
     while (!connected) {
       connected = await this.serial.connect();
       if (!connected) {
-        console.log("Reconnection failed. Retrying in 5 seconds...");
+        console.log(chalk.red("Reconnection failed. Retrying in 5 seconds..."));
         await new Promise((resolve) => setTimeout(resolve, 5000));
       }
     }
-    console.log("Reconnected to microcontroller");
+    console.log(chalk.green("Reconnected to microcontroller"));
     this.setupSerialListeners();
     this.sendInitialSettings();
   }
@@ -222,12 +233,12 @@ Settings:
 
 // Handle process termination
 process.on("SIGINT", () => {
-  console.log("\nReceived SIGINT. Cleaning up...");
+  console.log(chalk.yellow("\nReceived SIGINT. Cleaning up..."));
   process.exit(0);
 });
 
 const master = new Master();
 master.init().catch((error) => {
-  console.error("Error initializing master:", error);
+  console.error(chalk.red("Error initializing master:"), error);
   process.exit(1);
 });

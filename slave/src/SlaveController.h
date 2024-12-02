@@ -17,6 +17,8 @@ struct Settings {
 
 class SlaveController {
  private:
+  static SlaveController* instance;
+  static void staticSendState();
   Status currentStatus;
   Settings settings;
   RouterController router;

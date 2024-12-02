@@ -1,8 +1,14 @@
 #include "SlaveController.h"
 
+SlaveController* SlaveController::instance = nullptr;
+
+void SlaveController::staticSendState() { instance->sendState(); }
+
 SlaveController::SlaveController() : currentStatus(Status::IDLE) {
+  instance = this;
   settings.pushTime = DEFAULT_PUSH_TIME;
   settings.riserTime = DEFAULT_RISER_TIME;
+  router.setStateChangeCallback(&SlaveController::staticSendState);
 }
 
 void SlaveController::setup() {
@@ -31,14 +37,6 @@ void SlaveController::loop() {
 
   // Update router state
   router.loop();
-
-  // Send state updates periodically
-  static unsigned long lastUpdate = 0;
-  unsigned long currentTime = millis();
-  if (currentTime - lastUpdate > 5000) {
-    sendState();
-    lastUpdate = currentTime;
-  }
 }
 
 void SlaveController::processCommand(const String& command) {
@@ -79,7 +77,8 @@ void SlaveController::sendState() {
   doc["router_state"] = static_cast<int>(router.getState());
   doc["push_cylinder"] = router.isPushCylinderActive() ? "ON" : "OFF";
   doc["riser_cylinder"] = router.isRiserCylinderActive() ? "ON" : "OFF";
-  doc["sensor1"] = digitalRead(SENSOR1_PIN);
+  doc["ejection_cylinder"] = router.isEjectionCylinderActive() ? "ON" : "OFF";
+  doc["sensor1"] = router.isSensor1Active() ? "ON" : "OFF";
 
   String output;
   serializeJson(doc, output);

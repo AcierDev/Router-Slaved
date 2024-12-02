@@ -11,7 +11,8 @@ RouterController::RouterController()
       analysisComplete(false),
       shouldEject(false),
       pushCylinderState(false),
-      riserCylinderState(false) {}
+      riserCylinderState(false),
+      ejectionCylinderState(false) {}
 
 void RouterController::setup() {
   pinMode(PUSH_CYLINDER_PIN, OUTPUT);
@@ -41,6 +42,7 @@ void RouterController::updateState() {
         activatePushCylinder();
         stateStartTime = currentTime;
         currentState = RouterState::PUSHING;
+        broadcastState();
       }
       break;
 
@@ -50,6 +52,7 @@ void RouterController::updateState() {
         activateRiserCylinder();
         stateStartTime = currentTime;
         currentState = RouterState::RAISING;
+        broadcastState();
       }
       break;
 
@@ -60,6 +63,7 @@ void RouterController::updateState() {
         } else {
           lowerAndWait();
         }
+        broadcastState();
       }
       break;
 
@@ -72,13 +76,16 @@ void RouterController::updateState() {
     case RouterState::EJECTING:
       if (currentTime - stateStartTime >= ejectionTime) {
         digitalWrite(EJECTION_CYLINDER_PIN, LOW);
+        ejectionCylinderState = false;
         lowerAndWait();
+        broadcastState();
       }
       break;
 
     case RouterState::LOWERING:
       if (currentTime - stateStartTime >= CYCLE_DELAY) {
         currentState = RouterState::IDLE;
+        broadcastState();
       }
       break;
 
@@ -95,30 +102,39 @@ void RouterController::startCycle() {
   cycleStartTime = millis();
   stateStartTime = cycleStartTime;
   currentState = RouterState::WAITING_FOR_PUSH;
+  broadcastState();
 }
 
 void RouterController::activatePushCylinder() {
   digitalWrite(PUSH_CYLINDER_PIN, HIGH);
   pushCylinderState = true;
+  Serial.println("DEBUG: Push cylinder activated");
+  broadcastState();
 }
 
 void RouterController::deactivatePushCylinder() {
   digitalWrite(PUSH_CYLINDER_PIN, LOW);
   pushCylinderState = false;
+  Serial.println("DEBUG: Push cylinder deactivated");
+  broadcastState();
 }
 
 void RouterController::activateRiserCylinder() {
   digitalWrite(RISER_CYLINDER_PIN, HIGH);
   riserCylinderState = true;
+  Serial.println("DEBUG: Riser cylinder activated");
+  broadcastState();
 }
 
 void RouterController::deactivateRiserCylinder() {
   digitalWrite(RISER_CYLINDER_PIN, LOW);
   riserCylinderState = false;
+  Serial.println("DEBUG: Riser cylinder deactivated");
+  broadcastState();
 }
 
 bool RouterController::isSensor1Active() {
-  return digitalRead(SENSOR1_PIN) == HIGH;
+  return digitalRead(SENSOR1_PIN) == LOW;
 }
 
 void RouterController::startAnalysis() {
@@ -153,6 +169,8 @@ void RouterController::abortAnalysis() {
 
 void RouterController::startEjection() {
   digitalWrite(EJECTION_CYLINDER_PIN, HIGH);
+  ejectionCylinderState = true;
+  Serial.println("DEBUG: Ejection cylinder activated");
   stateStartTime = millis();
   currentState = RouterState::EJECTING;
 }
@@ -166,5 +184,43 @@ void RouterController::lowerAndWait() {
 void RouterController::abortCurrentAnalysis() {
   if (currentState == RouterState::WAITING_FOR_ANALYSIS) {
     abortAnalysis();
+  }
+}
+
+void RouterController::broadcastState() {
+  // Add debug logging for state changes
+  Serial.print("DEBUG: Current state: ");
+  switch (currentState) {
+    case RouterState::IDLE:
+      Serial.println("IDLE");
+      break;
+    case RouterState::WAITING_FOR_PUSH:
+      Serial.println("WAITING_FOR_PUSH");
+      break;
+    case RouterState::PUSHING:
+      Serial.println("PUSHING");
+      break;
+    case RouterState::RAISING:
+      Serial.println("RAISING");
+      break;
+    case RouterState::WAITING_FOR_ANALYSIS:
+      Serial.println("WAITING_FOR_ANALYSIS");
+      break;
+    case RouterState::EJECTING:
+      Serial.println("EJECTING");
+      break;
+    case RouterState::LOWERING:
+      Serial.println("LOWERING");
+      break;
+    case RouterState::ERROR:
+      Serial.println("ERROR");
+      break;
+    default:
+      Serial.println("UNKNOWN");
+      break;
+  }
+
+  if (onStateChange) {
+    onStateChange();
   }
 }

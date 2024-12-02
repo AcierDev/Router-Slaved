@@ -4,9 +4,9 @@
 // Pin Definitions
 #define LED_PIN 13
 #define PUSH_CYLINDER_PIN 18
-#define EJECTION_CYLINDER_PIN 19
-#define RISER_CYLINDER_PIN 16
-#define SENSOR1_PIN 17
+#define EJECTION_CYLINDER_PIN 5
+#define RISER_CYLINDER_PIN 17
+#define SENSOR1_PIN 16
 
 // Constants
 #define BAUD_RATE 115200
