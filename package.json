@@ -1,5 +1,8 @@
 {
   "name": "master-slave-template",
+  "_moduleDirectories": [
+    "./master/node_modules"
+  ],
   "version": "1.0.0",
   "main": "master/src/master.ts",
   "type": "module",

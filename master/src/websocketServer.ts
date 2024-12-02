@@ -9,17 +9,25 @@ export class WebSocketServer {
   }
 
   broadcastState(state: SlaveState): void {
-    this.wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({ type: "state", data: state }));
-      }
-    });
+    this.broadcast("state", state);
   }
 
   broadcastSettings(settings: SlaveSettings): void {
+    this.broadcast("settings", settings);
+  }
+
+  broadcastWarning(message: string): void {
+    this.broadcast("warning", { message });
+  }
+
+  broadcastError(message: string): void {
+    this.broadcast("error", { message });
+  }
+
+  private broadcast(type: string, data: any): void {
     this.wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({ type: "settings", data: settings }));
+        client.send(JSON.stringify({ type, data }));
       }
     });
   }
@@ -34,6 +42,7 @@ export class WebSocketServer {
           }
         } catch (error) {
           console.error("Error parsing command message:", error);
+          this.broadcastError("Invalid command format");
         }
       });
     });
@@ -49,7 +58,18 @@ export class WebSocketServer {
           }
         } catch (error) {
           console.error("Error parsing settings update message:", error);
+          this.broadcastError("Invalid settings format");
         }
+      });
+    });
+  }
+
+  onConnection(callback: (ws: WebSocket) => void): void {
+    this.wss.on("connection", (ws) => {
+      callback(ws);
+      ws.on("error", (error) => {
+        console.error("WebSocket error:", error);
+        this.broadcastError("WebSocket connection error");
       });
     });
   }

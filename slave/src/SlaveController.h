@@ -4,7 +4,7 @@
 #include <ArduinoJson.h>
 
 // Define your custom types here
-enum class State { IDLE, BUSY, ERROR };
+enum class Status { IDLE, BUSY, ERROR };
 
 struct Settings {
   // Define your settings here
@@ -13,18 +13,25 @@ struct Settings {
 
 class SlaveController {
  private:
-  State currentState;
+  Status currentStatus;
   Settings settings;
+  bool pushCylinderState;
+  bool ejectionCylinderState;
 
   void processCommand(const String& command);
   void updateSettings(const JsonObject& json);
   void sendState();
-  String stateToString(State state);
+  String stateToString(Status state);
+  void sendWarning(const String& message);
+  void sendError(const String& message);
 
  public:
   SlaveController();
   void setup();
   void loop();
 
-  // Add any additional methods you need for your specific project
+  void turnOnPushCylinder();
+  void turnOffPushCylinder();
+  void turnOnEjectionCylinder();
+  void turnOffEjectionCylinder();
 };

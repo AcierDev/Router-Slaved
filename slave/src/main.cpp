@@ -2,7 +2,13 @@
 
 SlaveController controller;
 
-// These need to be global functions
-void setup() { controller.setup(); }
+void setup() {
+  Serial.begin(115200);
+  Serial.println("Main setup started");
+  controller.setup();
+  Serial.println("Main setup completed");
+}
 
-void loop() { controller.loop(); }
+void loop() {
+  controller.loop();
+}
