@@ -61,15 +61,13 @@ export class SerialCommunication {
   onStateUpdate(callback: (state: SlaveState) => void): void {
     this.checkConnection();
     this.parser!.on("data", (data: string) => {
-      console.log(chalk.green(`Received raw data: ${data}`));
-
       if (data.startsWith("STATE")) {
-        const stateData = JSON.parse(data.slice(6));
-        callback(stateData);
-      } else if (data.startsWith("WARNING")) {
-        console.log(chalk.yellow(`Warning from slave: ${data.slice(8)}`));
-      } else if (data.startsWith("ERROR")) {
-        console.log(chalk.red(`Error from slave: ${data.slice(6)}`));
+        try {
+          const stateData = JSON.parse(data.slice(6));
+          callback(stateData);
+        } catch (error) {
+          console.error(chalk.red("Error parsing state data:", error));
+        }
       }
     });
   }
@@ -78,7 +76,9 @@ export class SerialCommunication {
     this.checkConnection();
     this.parser!.on("data", (data: string) => {
       if (data.startsWith("WARNING")) {
-        callback(data.slice(8));
+        const message = data.slice(8);
+        console.log(chalk.yellow(`Warning from slave: ${message}`));
+        callback(message);
       }
     });
   }
@@ -87,7 +87,9 @@ export class SerialCommunication {
     this.checkConnection();
     this.parser!.on("data", (data: string) => {
       if (data.startsWith("ERROR")) {
-        callback(data.slice(6));
+        const message = data.slice(6);
+        console.log(chalk.red(`Error from slave: ${message}`));
+        callback(message);
       }
     });
   }

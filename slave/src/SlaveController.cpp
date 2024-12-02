@@ -1,37 +1,26 @@
 #include "SlaveController.h"
 
-#include "config.h"
-
 SlaveController::SlaveController() : currentStatus(Status::IDLE) {
-  // Initialize your hardware here
+  settings.pushTime = DEFAULT_PUSH_TIME;
+  settings.riserTime = DEFAULT_RISER_TIME;
 }
 
 void SlaveController::setup() {
   Serial.begin(BAUD_RATE);
-  pinMode(PUSH_CYLINDER_PIN, OUTPUT);
-  pinMode(EJECTION_CYLINDER_PIN, OUTPUT);
-  digitalWrite(PUSH_CYLINDER_PIN, LOW);
-  digitalWrite(EJECTION_CYLINDER_PIN, LOW);
-  // pinMode(LED_PIN, OUTPUT);
+  router.setup();
 }
 
 void SlaveController::loop() {
-  static unsigned long lastLoopTime = 0;
-  unsigned long currentTime = millis();
-
-
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
     input.trim();
-
-    Serial.println("Received input: " + input);
 
     if (input.startsWith("SETTINGS ")) {
       StaticJsonDocument<200> doc;
       DeserializationError error = deserializeJson(doc, input.substring(9));
 
       if (error) {
-        Serial.println("Failed to parse settings");
+        sendError("Failed to parse settings");
       } else {
         updateSettings(doc.as<JsonObject>());
       }
@@ -40,47 +29,43 @@ void SlaveController::loop() {
     }
   }
 
+  // Update router state
+  router.loop();
+
   // Send state updates periodically
   static unsigned long lastUpdate = 0;
-  if (currentTime - lastUpdate > 5000) {  // Send update every second
+  unsigned long currentTime = millis();
+  if (currentTime - lastUpdate > 5000) {
     sendState();
     lastUpdate = currentTime;
   }
-
-  delay(10);
 }
 
 void SlaveController::processCommand(const String& command) {
-  Serial.println("Processing command: " + command);
-  if (command == "PUSH_ON") {
-    if (ejectionCylinderState) {
-      sendWarning("Attempting to push while ejection is active");
-    }
-    turnOnPushCylinder();
-  } else if (command == "PUSH_OFF") {
-    turnOffPushCylinder();
-  } else if (command == "EJECT_ON") {
-    if (pushCylinderState) {
-      sendWarning("Attempting to eject while push is active");
-    }
-    turnOnEjectionCylinder();
-  } else if (command == "EJECT_OFF") {
-    turnOffEjectionCylinder();
+  if (command == "STATUS") {
+    sendState();
   } else {
     sendError("Unknown command: " + command);
   }
 }
 
 void SlaveController::updateSettings(const JsonObject& json) {
-  Serial.println("Updating settings");
-  // Add more settings as needed
+  if (json.containsKey("pushTime")) {
+    settings.pushTime = json["pushTime"];
+    router.setPushTime(settings.pushTime);
+  }
+  if (json.containsKey("riserTime")) {
+    settings.riserTime = json["riserTime"];
+    router.setRiserTime(settings.riserTime);
+  }
 }
 
 void SlaveController::sendState() {
   StaticJsonDocument<200> doc;
   doc["status"] = stateToString(currentStatus);
-  doc["push_cylinder"] = pushCylinderState ? "ON" : "OFF";
-  doc["ejection_cylinder"] = ejectionCylinderState ? "ON" : "OFF";
+  doc["router_state"] = static_cast<int>(router.getState());
+  doc["push_cylinder"] = router.isPushCylinderActive() ? "ON" : "OFF";
+  doc["riser_cylinder"] = router.isRiserCylinderActive() ? "ON" : "OFF";
   doc["sensor1"] = digitalRead(SENSOR1_PIN);
 
   String output;
@@ -98,34 +83,6 @@ String SlaveController::stateToString(Status state) {
       return "ERROR";
     default:
       return "UNKNOWN";
-  }
-}
-
-void SlaveController::turnOnPushCylinder() {
-  digitalWrite(PUSH_CYLINDER_PIN, HIGH);
-  pushCylinderState = true;
-  currentStatus = Status::BUSY;
-}
-
-void SlaveController::turnOffPushCylinder() {
-  digitalWrite(PUSH_CYLINDER_PIN, LOW);
-  pushCylinderState = false;
-  if (!ejectionCylinderState) {
-    currentStatus = Status::IDLE;
-  }
-}
-
-void SlaveController::turnOnEjectionCylinder() {
-  digitalWrite(EJECTION_CYLINDER_PIN, HIGH);
-  ejectionCylinderState = true;
-  currentStatus = Status::BUSY;
-}
-
-void SlaveController::turnOffEjectionCylinder() {
-  digitalWrite(EJECTION_CYLINDER_PIN, LOW);
-  ejectionCylinderState = false;
-  if (!pushCylinderState) {
-    currentStatus = Status::IDLE;
   }
 }
 

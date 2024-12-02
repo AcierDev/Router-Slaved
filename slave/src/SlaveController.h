@@ -3,20 +3,21 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
+#include "RouterController.h"
+
 // Define your custom types here
 enum class Status { IDLE, BUSY, ERROR };
 
 struct Settings {
-  // Define your settings here
-  // Example: int motorSpeed;
+  unsigned long pushTime;
+  unsigned long riserTime;
 };
 
 class SlaveController {
  private:
   Status currentStatus;
   Settings settings;
-  bool pushCylinderState;
-  bool ejectionCylinderState;
+  RouterController router;
 
   void processCommand(const String& command);
   void updateSettings(const JsonObject& json);
@@ -29,9 +30,4 @@ class SlaveController {
   SlaveController();
   void setup();
   void loop();
-
-  void turnOnPushCylinder();
-  void turnOffPushCylinder();
-  void turnOnEjectionCylinder();
-  void turnOffEjectionCylinder();
 };
