@@ -8,8 +8,6 @@ export class SettingsManager {
   constructor(settingsPath: string) {
     this.settingsPath = settingsPath;
     this.settings = {
-      ledBrightness: 50,
-      motorSpeed: 100,
       sensorThreshold: 500,
     };
   }

@@ -5,6 +5,8 @@ export interface SlaveState {
 
 export type State = "IDLE";
 
-export interface SlaveSettings {}
+export type SlaveSettings = Record<SettingsKeys, any>;
+
+export type SettingsKeys = "sensorThreshold";
 
 export type Command = string;

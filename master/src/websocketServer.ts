@@ -1,11 +1,11 @@
-import WebSocket from "ws";
+import { WebSocket, WebSocketServer as WSServer } from "ws";
 import { Command, SlaveSettings, SlaveState } from "./typings/types";
 
 export class WebSocketServer {
-  private wss: WebSocket.Server;
+  private wss: WSServer;
 
   constructor(port: number) {
-    this.wss = new WebSocket.Server({ port });
+    this.wss = new WSServer({ port });
   }
 
   broadcastState(state: SlaveState): void {
@@ -27,9 +27,13 @@ export class WebSocketServer {
   onCommand(callback: (command: Command) => void): void {
     this.wss.on("connection", (ws) => {
       ws.on("message", (message: string) => {
-        const data = JSON.parse(message);
-        if (data.type === "command") {
-          callback(data.data);
+        try {
+          const data = JSON.parse(message.toString());
+          if (data.type === "command") {
+            callback(data.data);
+          }
+        } catch (error) {
+          console.error("Error parsing command message:", error);
         }
       });
     });
@@ -38,9 +42,13 @@ export class WebSocketServer {
   onSettingsUpdate(callback: (settings: Partial<SlaveSettings>) => void): void {
     this.wss.on("connection", (ws) => {
       ws.on("message", (message: string) => {
-        const data = JSON.parse(message);
-        if (data.type === "updateSettings") {
-          callback(data.data);
+        try {
+          const data = JSON.parse(message.toString());
+          if (data.type === "updateSettings") {
+            callback(data.data);
+          }
+        } catch (error) {
+          console.error("Error parsing settings update message:", error);
         }
       });
     });
