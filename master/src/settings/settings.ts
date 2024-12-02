@@ -8,7 +8,8 @@ export class SettingsManager {
   constructor(settingsPath: string) {
     this.settingsPath = settingsPath;
     this.settings = {
-      sensorThreshold: 500,
+      pushTime: 0,
+      riserTime: 0,
     };
   }
 

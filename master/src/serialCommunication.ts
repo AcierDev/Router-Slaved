@@ -1,7 +1,7 @@
 import { SerialPort } from "serialport";
 import { ReadlineParser } from "@serialport/parser-readline";
 import { SlaveState, SlaveSettings, Command } from "./typings/types";
-import { detectMicrocontrollerPort } from "./util/portDetection";
+import { detectMicrocontrollerPort } from "./util/portDetection.js";
 import chalk from "chalk";
 
 export class SerialCommunication {

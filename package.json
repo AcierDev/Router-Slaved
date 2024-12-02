@@ -5,10 +5,11 @@
   ],
   "version": "1.0.0",
   "main": "master/src/master.ts",
-  "type": "module",
   "scripts": {
-    "start": "node --loader ts-node/esm --experimental-specifier-resolution=node master/src/master.ts"
+    "start": "node --loader ts-node/esm master/src/master.ts",
+    "retardmode": "tsc && node master/dist/master.js"
   },
+  "type": "module",
   "keywords": [],
   "author": "",
   "license": "ISC",

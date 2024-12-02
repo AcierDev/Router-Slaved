@@ -1,8 +1,16 @@
-import { SerialCommunication } from "./serialCommunication";
-import { SettingsManager } from "./settings/settings";
-import { Command, SlaveSettings, SlaveState } from "./typings/types";
-import { WebSocketServer } from "./websocketServer";
+import { SerialCommunication } from "./serialCommunication.js";
+import { SettingsManager } from "./settings/settings.js";
+import { Command, SlaveSettings, SlaveState } from "./typings/types.js";
+import { WebSocketServer } from "./websocketServer.js";
 import readline from "readline";
+
+enum RouterState {
+  IDLE,
+  WAITING_FOR_PUSH,
+  PUSHING,
+  RAISING,
+  ERROR,
+}
 
 class Master {
   private serial: SerialCommunication;
@@ -17,7 +25,10 @@ class Master {
     this.settingsManager = new SettingsManager("./settings.json");
     this.currentState = {
       status: "IDLE",
-      sensors: {},
+      router_state: RouterState.IDLE,
+      push_cylinder: "OFF",
+      riser_cylinder: "OFF",
+      sensor1: false,
     };
 
     // Setup CLI
@@ -54,11 +65,15 @@ class Master {
           "Current State:",
           JSON.stringify(this.currentState, null, 2)
         );
+      } else if (command === "SETTINGS") {
+        console.log(
+          "Current Settings:",
+          JSON.stringify(this.settingsManager.getSettings(), null, 2)
+        );
+      } else if (command.startsWith("SET ")) {
+        this.handleSetCommand(command.slice(4));
       } else if (command === "EXIT" || command === "QUIT") {
         this.cleanup();
-      } else if (this.isValidCommand(command)) {
-        this.serial.sendCommand(command as Command);
-        console.log(`Sent command: ${command}`);
       } else {
         console.log("Invalid command. Type HELP for available commands.");
       }
@@ -71,21 +86,50 @@ class Master {
     });
   }
 
-  private isValidCommand(command: string): boolean {
-    const validCommands = ["PUSH_ON", "PUSH_OFF", "EJECT_ON", "EJECT_OFF"];
-    return validCommands.includes(command);
+  private handleSetCommand(params: string): void {
+    const [key, value] = params.split("=").map((s) => s.trim());
+    if (!key || !value) {
+      console.log("Invalid SET command. Format: SET key=value");
+      return;
+    }
+
+    const numValue = parseInt(value);
+    if (isNaN(numValue)) {
+      console.log("Value must be a number");
+      return;
+    }
+
+    const settings: Partial<SlaveSettings> = {};
+    switch (key.toLowerCase()) {
+      case "pushtime":
+        settings.pushTime = numValue;
+        break;
+      case "risertime":
+        settings.riserTime = numValue;
+        break;
+      default:
+        console.log("Unknown setting:", key);
+        return;
+    }
+
+    this.settingsManager.updateSettings(settings);
+    const updatedSettings = this.settingsManager.getSettings();
+    this.serial.sendSettings(updatedSettings);
+    this.wss.broadcastSettings(updatedSettings);
   }
 
   private showHelp(): void {
     console.log(`
 Available Commands:
-  PUSH_ON     - Activate push cylinder
-  PUSH_OFF    - Deactivate push cylinder
-  EJECT_ON    - Activate ejection cylinder
-  EJECT_OFF   - Deactivate ejection cylinder
   STATUS      - Show current state
+  SETTINGS    - Show current settings
+  SET key=value - Update settings (e.g., SET pushTime=3000)
   HELP        - Show this help message
   EXIT/QUIT   - Exit the program
+
+Settings:
+  pushTime    - Push cylinder activation time (ms)
+  riserTime   - Riser cylinder activation time (ms)
     `);
   }
 
@@ -169,6 +213,10 @@ Available Commands:
     console.log("Reconnected to microcontroller");
     this.setupSerialListeners();
     this.sendInitialSettings();
+  }
+
+  private getRouterStateString(state: RouterState): string {
+    return RouterState[state];
   }
 }
 
