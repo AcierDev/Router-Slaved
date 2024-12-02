@@ -44,6 +44,11 @@ void SlaveController::loop() {
 void SlaveController::processCommand(const String& command) {
   if (command == "STATUS") {
     sendState();
+  } else if (command == "ABORT_ANALYSIS") {
+    router.abortCurrentAnalysis();
+  } else if (command.startsWith("ANALYSIS_RESULT ")) {
+    bool shouldEject = command.substring(15) == "TRUE";
+    router.handleAnalysisResult(shouldEject);
   } else {
     sendError("Unknown command: " + command);
   }
@@ -57,6 +62,14 @@ void SlaveController::updateSettings(const JsonObject& json) {
   if (json.containsKey("riserTime")) {
     settings.riserTime = json["riserTime"];
     router.setRiserTime(settings.riserTime);
+  }
+  if (json.containsKey("ejectionTime")) {
+    settings.ejectionTime = json["ejectionTime"];
+    router.setEjectionTime(settings.ejectionTime);
+  }
+  if (json.containsKey("analysisMode")) {
+    settings.analysisMode = json["analysisMode"];
+    router.setAnalysisMode(settings.analysisMode);
   }
 }
 

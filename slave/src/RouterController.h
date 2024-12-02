@@ -4,7 +4,16 @@
 
 #include "config.h"
 
-enum class RouterState { IDLE, WAITING_FOR_PUSH, PUSHING, RAISING, ERROR };
+enum class RouterState {
+  IDLE,
+  WAITING_FOR_PUSH,
+  PUSHING,
+  RAISING,
+  WAITING_FOR_ANALYSIS,
+  EJECTING,
+  LOWERING,
+  ERROR
+};
 
 class RouterController {
  private:
@@ -15,6 +24,10 @@ class RouterController {
   // Settings
   unsigned long pushTime;
   unsigned long riserTime;
+  unsigned long ejectionTime;
+  bool analysisMode;
+  bool analysisComplete;
+  bool shouldEject;
 
   // Cylinder states
   bool pushCylinderState;
@@ -27,6 +40,11 @@ class RouterController {
   void activateRiserCylinder();
   void deactivateRiserCylinder();
   bool isSensor1Active();
+  void startAnalysis();
+  void handleAnalysisResponse(bool eject);
+  void abortAnalysis();
+  void startEjection();
+  void lowerAndWait();
 
  public:
   RouterController();
@@ -43,4 +61,10 @@ class RouterController {
   void setRiserTime(unsigned long timeMs) { riserTime = timeMs; }
   unsigned long getPushTime() const { return pushTime; }
   unsigned long getRiserTime() const { return riserTime; }
+  void setEjectionTime(unsigned long timeMs) { ejectionTime = timeMs; }
+  void setAnalysisMode(bool enabled) { analysisMode = enabled; }
+  void handleAnalysisResult(bool eject);
+  void abortCurrentAnalysis();
+  unsigned long getEjectionTime() const { return ejectionTime; }
+  bool isAnalysisModeEnabled() const { return analysisMode; }
 };

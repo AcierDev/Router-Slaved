@@ -11,6 +11,8 @@ enum class Status { IDLE, BUSY, ERROR };
 struct Settings {
   unsigned long pushTime;
   unsigned long riserTime;
+  unsigned long ejectionTime;
+  bool analysisMode;
 };
 
 class SlaveController {

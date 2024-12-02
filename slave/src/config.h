@@ -15,6 +15,9 @@
 // Default timing values (in milliseconds)
 #define DEFAULT_PUSH_TIME 3000
 #define DEFAULT_RISER_TIME 3000
+#define DEFAULT_EJECTION_TIME 1000
+#define ANALYSIS_TIMEOUT 5000
+#define CYCLE_DELAY 1000
 #define SENSOR_DELAY_TIME 300
 
 #endif  // CONFIG_H

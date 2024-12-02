@@ -6,6 +6,10 @@ RouterController::RouterController()
       stateStartTime(0),
       pushTime(DEFAULT_PUSH_TIME),
       riserTime(DEFAULT_RISER_TIME),
+      ejectionTime(DEFAULT_EJECTION_TIME),
+      analysisMode(false),
+      analysisComplete(false),
+      shouldEject(false),
       pushCylinderState(false),
       riserCylinderState(false) {}
 
@@ -51,7 +55,29 @@ void RouterController::updateState() {
 
     case RouterState::RAISING:
       if (currentTime - stateStartTime >= riserTime) {
-        deactivateRiserCylinder();
+        if (analysisMode) {
+          startAnalysis();
+        } else {
+          lowerAndWait();
+        }
+      }
+      break;
+
+    case RouterState::WAITING_FOR_ANALYSIS:
+      if (currentTime - stateStartTime >= ANALYSIS_TIMEOUT) {
+        abortAnalysis();
+      }
+      break;
+
+    case RouterState::EJECTING:
+      if (currentTime - stateStartTime >= ejectionTime) {
+        digitalWrite(EJECTION_CYLINDER_PIN, LOW);
+        lowerAndWait();
+      }
+      break;
+
+    case RouterState::LOWERING:
+      if (currentTime - stateStartTime >= CYCLE_DELAY) {
         currentState = RouterState::IDLE;
       }
       break;
@@ -93,4 +119,52 @@ void RouterController::deactivateRiserCylinder() {
 
 bool RouterController::isSensor1Active() {
   return digitalRead(SENSOR1_PIN) == HIGH;
+}
+
+void RouterController::startAnalysis() {
+  stateStartTime = millis();
+  currentState = RouterState::WAITING_FOR_ANALYSIS;
+  analysisComplete = false;
+  // Signal to master to start analysis
+  Serial.println("STATE_REQUEST ANALYSIS_START");
+}
+
+void RouterController::handleAnalysisResult(bool eject) {
+  if (currentState != RouterState::WAITING_FOR_ANALYSIS) {
+    return;
+  }
+
+  analysisComplete = true;
+  shouldEject = eject;
+
+  if (eject) {
+    startEjection();
+  } else {
+    lowerAndWait();
+  }
+}
+
+void RouterController::abortAnalysis() {
+  if (currentState != RouterState::WAITING_FOR_ANALYSIS) {
+    return;
+  }
+  lowerAndWait();
+}
+
+void RouterController::startEjection() {
+  digitalWrite(EJECTION_CYLINDER_PIN, HIGH);
+  stateStartTime = millis();
+  currentState = RouterState::EJECTING;
+}
+
+void RouterController::lowerAndWait() {
+  deactivateRiserCylinder();
+  stateStartTime = millis();
+  currentState = RouterState::LOWERING;
+}
+
+void RouterController::abortCurrentAnalysis() {
+  if (currentState == RouterState::WAITING_FOR_ANALYSIS) {
+    abortAnalysis();
+  }
 }
