@@ -27,4 +27,19 @@ export type SlaveSettings = {
 
 export type SettingsKeys = "sensorThreshold";
 
-export type Command = "STATUS";
+export type Command =
+  | "STATUS"
+  | "ANALYSIS_RESULT TRUE"
+  | "ANALYSIS_RESULT FALSE"
+  | "ABORT_ANALYSIS";
+
+export interface AnalysisImage {
+  timestamp: string;
+  imageData: string; // Base64 encoded image
+  path: string;
+}
+
+export interface WebSocketMessage {
+  type: "state" | "settings" | "warning" | "error" | "analysis_image" | "log";
+  data: SlaveState | SlaveSettings | { message: string } | AnalysisImage;
+}

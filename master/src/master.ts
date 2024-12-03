@@ -9,6 +9,11 @@ import {
 import { WebSocketServer } from "./websocketServer.js";
 import readline from "readline";
 import chalk from "chalk";
+import { AndroidController } from "./android/androidController.js";
+import { imageToBase64 } from "./util/imageUtils.js";
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
 
 class Master {
   private serial: SerialCommunication;
@@ -16,6 +21,7 @@ class Master {
   private settingsManager: SettingsManager;
   private currentState: SlaveState;
   private rl: readline.Interface;
+  private androidController: AndroidController;
 
   constructor() {
     this.serial = new SerialCommunication();
@@ -36,12 +42,21 @@ class Master {
       output: process.stdout,
       prompt: "slave> ",
     });
+
+    this.androidController = new AndroidController();
   }
 
   async init(): Promise<void> {
     await this.settingsManager.loadSettings();
-    const connected = await this.serial.connect();
-    if (!connected) {
+
+    // Initialize Android connection
+    const androidConnected = await this.androidController.init();
+    if (!androidConnected) {
+      console.log(chalk.yellow("Warning: Failed to connect to Android device"));
+    }
+
+    const serialConnected = await this.serial.connect();
+    if (!serialConnected) {
       throw new Error("Failed to connect to microcontroller");
     }
     this.setupSerialListeners();
@@ -171,6 +186,10 @@ Settings:
       this.rl.prompt(true);
     });
 
+    this.serial.onRawData((data: string) => {
+      console.log(chalk.blue(`Raw data from slave: ${data}`));
+    });
+
     // this.serial.onDebug((message: string) => {
     //   console.log(chalk.blue(`Debug from slave: ${message}`));
     // });
@@ -184,6 +203,12 @@ Settings:
         await this.attemptReconnection();
       });
     }
+
+    this.serial.onRawData((data: string) => {
+      if (data.includes("STATE_REQUEST ANALYSIS_START")) {
+        this.handleAnalysisRequest();
+      }
+    });
   }
 
   private setupWebSocketListeners(): void {
@@ -222,6 +247,96 @@ Settings:
 
   private getRouterStateString(state: RouterState): string {
     return RouterState[state];
+  }
+
+  private async handleAnalysisRequest(): Promise<void> {
+    this.wss.broadcastLog("Starting analysis...", "info");
+
+    try {
+      // Create temp directory for debug images if it doesn't exist
+      const debugDir = path.join(os.tmpdir(), "router-control-debug");
+      await fs.mkdir(debugDir, { recursive: true });
+
+      // Check Android connection
+      if (!(await this.androidController.checkConnection())) {
+        this.wss.broadcastLog("Android device not connected", "error");
+        this.serial.sendCommand("ANALYSIS_RESULT FALSE");
+        return;
+      }
+
+      // Capture photo
+      const photoPath = await this.androidController.capturePhoto();
+      if (!photoPath) {
+        this.wss.broadcastLog("Failed to capture photo", "error");
+        this.serial.sendCommand("ANALYSIS_RESULT FALSE");
+        return;
+      }
+
+      this.wss.broadcastLog(`Photo captured at: ${photoPath}`, "info");
+
+      try {
+        // Convert image to base64 and send to frontend
+        const imageData = await imageToBase64(photoPath);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+        // Save original photo to debug directory
+        const debugPhotoPath = path.join(debugDir, `original-${timestamp}.jpg`);
+        await fs.copyFile(photoPath, debugPhotoPath);
+        this.wss.broadcastLog(
+          `Debug: Saved original photo to ${debugPhotoPath}`,
+          "info"
+        );
+
+        // Save base64 data to debug directory for inspection
+        const debugBase64Path = path.join(debugDir, `base64-${timestamp}.txt`);
+        await fs.writeFile(debugBase64Path, imageData);
+        this.wss.broadcastLog(
+          `Debug: Saved base64 data to ${debugBase64Path}`,
+          "info"
+        );
+
+        // Add data URL prefix if not present
+        const imageDataWithPrefix = imageData.startsWith("data:image/")
+          ? imageData
+          : `data:image/jpeg;base64,${imageData}`;
+
+        // Save the final data that will be sent to frontend
+        const debugFinalPath = path.join(debugDir, `final-${timestamp}.txt`);
+        await fs.writeFile(debugFinalPath, imageDataWithPrefix);
+        this.wss.broadcastLog(
+          `Debug: Saved final data to ${debugFinalPath}`,
+          "info"
+        );
+
+        this.wss.broadcastLog("Sending image to frontend...", "info");
+        this.wss.broadcastAnalysisImage({
+          timestamp,
+          imageData: imageDataWithPrefix,
+          path: photoPath,
+        });
+        this.wss.broadcastLog("Image sent to frontend", "info");
+
+        this.serial.sendCommand("ANALYSIS_RESULT TRUE");
+      } catch (imageError) {
+        this.wss.broadcastLog(
+          `Failed to process image: ${
+            imageError instanceof Error
+              ? imageError.message
+              : String(imageError)
+          }`,
+          "error"
+        );
+        this.serial.sendCommand("ANALYSIS_RESULT FALSE");
+      }
+    } catch (error) {
+      this.wss.broadcastLog(
+        `Analysis error: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        "error"
+      );
+      this.serial.sendCommand("ANALYSIS_RESULT FALSE");
+    }
   }
 }
 

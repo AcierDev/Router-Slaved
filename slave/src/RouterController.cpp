@@ -7,7 +7,7 @@ RouterController::RouterController()
       pushTime(DEFAULT_PUSH_TIME),
       riserTime(DEFAULT_RISER_TIME),
       ejectionTime(DEFAULT_EJECTION_TIME),
-      analysisMode(false),
+      analysisMode(true),
       analysisComplete(false),
       shouldEject(false),
       pushCylinderState(false),

@@ -1,5 +1,11 @@
 import { WebSocket, WebSocketServer as WSServer } from "ws";
-import { Command, SlaveSettings, SlaveState } from "./typings/types";
+import {
+  Command,
+  SlaveSettings,
+  SlaveState,
+  WebSocketMessage,
+  AnalysisImage,
+} from "./typings/types";
 
 export class WebSocketServer {
   private wss: WSServer;
@@ -24,10 +30,25 @@ export class WebSocketServer {
     this.broadcast("error", { message });
   }
 
+  broadcastAnalysisImage(imageData: AnalysisImage): void {
+    this.wss?.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(
+          JSON.stringify({
+            type: "analysis_image",
+            data: imageData,
+          })
+        );
+      }
+    });
+  }
+
   private broadcast(type: string, data: any): void {
+    //@ts-ignore
+    const message: WebSocketMessage = { type, data };
     this.wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({ type, data }));
+        client.send(JSON.stringify(message));
       }
     });
   }
@@ -71,6 +92,18 @@ export class WebSocketServer {
         console.error("WebSocket error:", error);
         this.broadcastError("WebSocket connection error");
       });
+    });
+  }
+
+  broadcastLog(
+    message: string,
+    level: "info" | "warn" | "error" = "info"
+  ): void {
+    const timestamp = new Date().toISOString();
+    this.broadcast("log", {
+      timestamp,
+      message,
+      level,
     });
   }
 }

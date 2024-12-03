@@ -21,6 +21,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/react-dom": "^18.3.1",
     "ts-node": "^10.9.2",
     "tslib": "^2.8.1",
     "typescript": "^5.7.2"
