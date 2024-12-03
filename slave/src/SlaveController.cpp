@@ -1,11 +1,13 @@
 #include "SlaveController.h"
 
-SlaveController::SlaveController() : currentState(State::IDLE) {
+#include "config.h"
+
+SlaveController::SlaveController() : currentStatus(Status::IDLE) {
   // Initialize your hardware here
 }
 
 void SlaveController::setup() {
-  Serial.begin(115200);
+  Serial.begin(BAUD_RATE);
   // Set up your hardware pins here
   // Example: pinMode(LED_PIN, OUTPUT);
 }
@@ -54,7 +56,7 @@ void SlaveController::updateSettings(const JsonObject& json) {
 
 void SlaveController::sendState() {
   StaticJsonDocument<200> doc;
-  doc["status"] = stateToString(currentState);
+  doc["status"] = stateToString(currentStatus);
 
   // Add sensor readings or other state information
   // Example: doc["sensors"]["limit1"] = digitalRead(LIMIT_SWITCH_1_PIN);
@@ -64,13 +66,13 @@ void SlaveController::sendState() {
   Serial.println("STATE " + output);
 }
 
-String SlaveController::stateToString(State state) {
+String SlaveController::stateToString(Status state) {
   switch (state) {
-    case State::IDLE:
+    case Status::IDLE:
       return "IDLE";
-    case State::BUSY:
+    case Status::BUSY:
       return "BUSY";
-    case State::ERROR:
+    case Status::ERROR:
       return "ERROR";
     default:
       return "UNKNOWN";

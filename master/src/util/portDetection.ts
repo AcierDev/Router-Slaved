@@ -3,7 +3,6 @@ import { SerialPort } from "serialport";
 export async function detectMicrocontrollerPort(): Promise<string | null> {
   try {
     const ports = await SerialPort.list();
-    console.log("Available ports:", ports);
 
     // Known USB-to-Serial converter IDs
     const knownVendorIds = [
