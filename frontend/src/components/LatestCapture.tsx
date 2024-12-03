@@ -104,7 +104,7 @@ export const LatestCapture: React.FC = () => {
             <CaptureImage
               src={getImageUrl(latestImage.imageData)}
               alt="Latest capture"
-              onError={(e) => {
+              onError={() => {
                 console.error("Failed to load image");
                 setImageError(true);
                 setIsLoading(false);

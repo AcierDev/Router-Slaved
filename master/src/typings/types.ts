@@ -25,6 +25,18 @@ export type SlaveSettings = {
   riserTime: number;
 };
 
+export type EjectionSettings = {
+  confidenceThreshold: number; // Minimum confidence level to consider a detection valid
+  maxDefects: number; // Maximum number of defects allowed before rejection
+  minArea: number; // Minimum area size to consider for analysis
+  maxArea: number; // Maximum area size to consider for analysis
+};
+
+export type Settings = {
+  slave: SlaveSettings;
+  ejection: EjectionSettings;
+};
+
 export type SettingsKeys = "sensorThreshold";
 
 export type Command =
@@ -41,5 +53,10 @@ export interface AnalysisImage {
 
 export interface WebSocketMessage {
   type: "state" | "settings" | "warning" | "error" | "analysis_image" | "log";
-  data: SlaveState | SlaveSettings | { message: string } | AnalysisImage;
+  data: SlaveState | Settings | { message: string } | AnalysisImage;
+}
+
+export interface ExtendedState extends SlaveState {
+  isCapturing: boolean;
+  isAnalyzing: boolean;
 }

@@ -5,6 +5,9 @@ import {
   RouterState,
   SlaveSettings,
   SlaveState,
+  ExtendedState,
+  EjectionSettings,
+  Settings,
 } from "./typings/types.js";
 import { WebSocketServer } from "./websocketServer.js";
 import readline from "readline";
@@ -19,7 +22,7 @@ class Master {
   private serial: SerialCommunication;
   private wss: WebSocketServer;
   private settingsManager: SettingsManager;
-  private currentState: SlaveState;
+  private currentState: ExtendedState;
   private rl: readline.Interface;
   private androidController: AndroidController;
 
@@ -34,6 +37,8 @@ class Master {
       riser_cylinder: "OFF",
       ejection_cylinder: "OFF",
       sensor1: "OFF",
+      isCapturing: false,
+      isAnalyzing: false,
     };
 
     // Setup CLI
@@ -107,29 +112,56 @@ class Master {
       return;
     }
 
-    const numValue = parseInt(value);
+    const numValue = parseFloat(value);
     if (isNaN(numValue)) {
       console.log(chalk.red("Value must be a number"));
       return;
     }
 
-    const settings: Partial<SlaveSettings> = {};
-    switch (key.toLowerCase()) {
-      case "pushtime":
-        settings.pushTime = numValue;
-        break;
-      case "risertime":
-        settings.riserTime = numValue;
-        break;
-      default:
-        console.log(chalk.red("Unknown setting:"), key);
-        return;
+    const [category, setting] = key.toLowerCase().split(".");
+
+    if (category === "slave") {
+      const settings: Partial<SlaveSettings> = {};
+      switch (setting) {
+        case "pushtime":
+          settings.pushTime = numValue;
+          break;
+        case "risertime":
+          settings.riserTime = numValue;
+          break;
+        default:
+          console.log(chalk.red("Unknown slave setting:"), setting);
+          return;
+      }
+      this.settingsManager.updateSlaveSettings(settings);
+      const updatedSettings = this.settingsManager.getSlaveSettings();
+      this.serial.sendSettings(updatedSettings);
+    } else if (category === "ejection") {
+      const settings: Partial<EjectionSettings> = {};
+      switch (setting) {
+        case "confidence":
+          settings.confidenceThreshold = numValue;
+          break;
+        case "maxdefects":
+          settings.maxDefects = Math.round(numValue);
+          break;
+        case "minarea":
+          settings.minArea = Math.round(numValue);
+          break;
+        case "maxarea":
+          settings.maxArea = Math.round(numValue);
+          break;
+        default:
+          console.log(chalk.red("Unknown ejection setting:"), setting);
+          return;
+      }
+      this.settingsManager.updateEjectionSettings(settings);
+    } else {
+      console.log(chalk.red("Unknown settings category:"), category);
+      return;
     }
 
-    this.settingsManager.updateSettings(settings);
-    const updatedSettings = this.settingsManager.getSettings();
-    this.serial.sendSettings(updatedSettings);
-    this.wss.broadcastSettings(updatedSettings);
+    this.wss.broadcastSettings(this.settingsManager.getSettings());
     console.log(chalk.green("Settings updated successfully"));
   }
 
@@ -139,13 +171,22 @@ class Master {
 Available Commands:
   ${chalk.yellow("STATUS")}      - Show current state
   ${chalk.yellow("SETTINGS")}    - Show current settings
-  ${chalk.yellow("SET key=value")} - Update settings (e.g., SET pushTime=3000)
+  ${chalk.yellow(
+    "SET key=value"
+  )} - Update settings (e.g., SET slave.pushTime=3000)
   ${chalk.yellow("HELP")}        - Show this help message
   ${chalk.yellow("EXIT/QUIT")}   - Exit the program
 
 Settings:
-  ${chalk.green("pushTime")}    - Push cylinder activation time (ms)
-  ${chalk.green("riserTime")}   - Riser cylinder activation time (ms)
+  Slave Settings:
+    ${chalk.green("slave.pushTime")}    - Push cylinder activation time (ms)
+    ${chalk.green("slave.riserTime")}   - Riser cylinder activation time (ms)
+  
+  Ejection Settings:
+    ${chalk.green("ejection.confidence")}  - Confidence threshold (0.0 - 1.0)
+    ${chalk.green("ejection.maxDefects")}  - Maximum allowed defects
+    ${chalk.green("ejection.minArea")}     - Minimum area for analysis
+    ${chalk.green("ejection.maxArea")}     - Maximum area for analysis
     `)
     );
   }
@@ -162,11 +203,18 @@ Settings:
 
   private setupSerialListeners(): void {
     this.serial.onStateUpdate((state: SlaveState) => {
-      this.currentState = state;
-      this.wss.broadcastState(state);
+      this.currentState = {
+        ...state,
+        isCapturing: this.currentState.isCapturing,
+        isAnalyzing: this.currentState.isAnalyzing,
+      };
+      this.wss.broadcastState(this.currentState);
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
-      console.log(chalk.blue("State Update:"), JSON.stringify(state, null, 2));
+      console.log(
+        chalk.blue("State Update:"),
+        JSON.stringify(this.currentState, null, 2)
+      );
       this.rl.prompt(true);
     });
 
@@ -216,17 +264,17 @@ Settings:
       this.serial.sendCommand(command);
     });
 
-    this.wss.onSettingsUpdate((newSettings: Partial<SlaveSettings>) => {
+    this.wss.onSettingsUpdate((newSettings: Partial<Settings>) => {
       this.settingsManager.updateSettings(newSettings);
-      const updatedSettings = this.settingsManager.getSettings();
-      this.serial.sendSettings(updatedSettings);
-      this.wss.broadcastSettings(updatedSettings);
+      const slaveSettings = this.settingsManager.getSlaveSettings();
+      this.serial.sendSettings(slaveSettings);
+      this.wss.broadcastSettings(this.settingsManager.getSettings());
     });
   }
 
   private sendInitialSettings(): void {
     const settings = this.settingsManager.getSettings();
-    this.serial.sendSettings(settings);
+    this.serial.sendSettings(settings.slave);
     this.wss.broadcastSettings(settings);
   }
 
@@ -252,6 +300,9 @@ Settings:
   private async handleAnalysisRequest(): Promise<void> {
     this.wss.broadcastLog("Starting analysis...", "info");
 
+    this.currentState.isCapturing = true;
+    this.wss.broadcastState(this.currentState);
+
     try {
       // Create temp directory for debug images if it doesn't exist
       const debugDir = path.join(os.tmpdir(), "router-control-debug");
@@ -266,6 +317,10 @@ Settings:
 
       // Capture photo
       const photoPath = await this.androidController.capturePhoto();
+
+      this.currentState.isCapturing = false;
+      this.wss.broadcastState(this.currentState);
+
       if (!photoPath) {
         this.wss.broadcastLog("Failed to capture photo", "error");
         this.serial.sendCommand("ANALYSIS_RESULT FALSE");
@@ -329,6 +384,9 @@ Settings:
         this.serial.sendCommand("ANALYSIS_RESULT FALSE");
       }
     } catch (error) {
+      this.currentState.isCapturing = false;
+      this.wss.broadcastState(this.currentState);
+
       this.wss.broadcastLog(
         `Analysis error: ${
           error instanceof Error ? error.message : String(error)

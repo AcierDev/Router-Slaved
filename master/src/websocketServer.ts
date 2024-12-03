@@ -5,6 +5,7 @@ import {
   SlaveState,
   WebSocketMessage,
   AnalysisImage,
+  Settings,
 } from "./typings/types";
 
 export class WebSocketServer {
@@ -18,8 +19,8 @@ export class WebSocketServer {
     this.broadcast("state", state);
   }
 
-  broadcastSettings(settings: SlaveSettings): void {
-    this.broadcast("settings", settings);
+  broadcastSettings(settings: Settings): void {
+    this.broadcast("settingsUpdate", settings);
   }
 
   broadcastWarning(message: string): void {
@@ -69,7 +70,7 @@ export class WebSocketServer {
     });
   }
 
-  onSettingsUpdate(callback: (settings: Partial<SlaveSettings>) => void): void {
+  onSettingsUpdate(callback: (settings: Partial<Settings>) => void): void {
     this.wss.on("connection", (ws) => {
       ws.on("message", (message: string) => {
         try {
