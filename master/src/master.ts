@@ -1,17 +1,14 @@
 import { SerialCommunication } from "./serialCommunication.js";
 import { SettingsManager } from "./settings/settings.js";
-import { Command, SlaveSettings, SlaveState } from "./typings/types.js";
+import {
+  Command,
+  RouterState,
+  SlaveSettings,
+  SlaveState,
+} from "./typings/types.js";
 import { WebSocketServer } from "./websocketServer.js";
 import readline from "readline";
 import chalk from "chalk";
-
-enum RouterState {
-  IDLE,
-  WAITING_FOR_PUSH,
-  PUSHING,
-  RAISING,
-  ERROR,
-}
 
 class Master {
   private serial: SerialCommunication;
@@ -29,7 +26,8 @@ class Master {
       router_state: RouterState.IDLE,
       push_cylinder: "OFF",
       riser_cylinder: "OFF",
-      sensor1: false,
+      ejection_cylinder: "OFF",
+      sensor1: "OFF",
     };
 
     // Setup CLI
@@ -161,7 +159,7 @@ Settings:
       this.wss.broadcastWarning(message);
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
-      console.log(chalk.yellow(`Warning: ${message}`));
+      console.log(chalk.yellow(`Warning from slave: ${message}`));
       this.rl.prompt(true);
     });
 
@@ -169,17 +167,13 @@ Settings:
       this.wss.broadcastError(message);
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
-      console.log(chalk.red(`Error: ${message}`));
+      console.log(chalk.red(`Error from slave: ${message}`));
       this.rl.prompt(true);
     });
 
-    // this.serial.onRawData((data: string) => {
-    //   console.log("Raw Data:", data);
+    // this.serial.onDebug((message: string) => {
+    //   console.log(chalk.blue(`Debug from slave: ${message}`));
     // });
-
-    this.serial.onDebug((message: string) => {
-      // console.log(chalk.blue(`Debug: ${message}`));
-    });
 
     const port = this.serial.getPort();
     if (port) {

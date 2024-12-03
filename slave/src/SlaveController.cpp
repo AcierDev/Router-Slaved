@@ -2,6 +2,29 @@
 
 SlaveController* SlaveController::instance = nullptr;
 
+String routerStateToString(RouterState state) {
+  switch (state) {
+    case RouterState::IDLE:
+      return "IDLE";
+    case RouterState::WAITING_FOR_PUSH:
+      return "WAITING_FOR_PUSH";
+    case RouterState::PUSHING:
+      return "PUSHING";
+    case RouterState::RAISING:
+      return "RAISING";
+    case RouterState::WAITING_FOR_ANALYSIS:
+      return "WAITING_FOR_ANALYSIS";
+    case RouterState::EJECTING:
+      return "EJECTING";
+    case RouterState::LOWERING:
+      return "LOWERING";
+    case RouterState::ERROR:
+      return "ERROR";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void SlaveController::staticSendState() { instance->sendState(); }
 
 SlaveController::SlaveController() : currentStatus(Status::IDLE) {
@@ -74,7 +97,7 @@ void SlaveController::updateSettings(const JsonObject& json) {
 void SlaveController::sendState() {
   StaticJsonDocument<200> doc;
   doc["status"] = stateToString(currentStatus);
-  doc["router_state"] = static_cast<int>(router.getState());
+  doc["router_state"] = routerStateToString(router.getState());
   doc["push_cylinder"] = router.isPushCylinderActive() ? "ON" : "OFF";
   doc["riser_cylinder"] = router.isRiserCylinderActive() ? "ON" : "OFF";
   doc["ejection_cylinder"] = router.isEjectionCylinderActive() ? "ON" : "OFF";

@@ -19,8 +19,9 @@ void RouterController::setup() {
   pinMode(RISER_CYLINDER_PIN, OUTPUT);
   pinMode(SENSOR1_PIN, INPUT);
 
-  digitalWrite(PUSH_CYLINDER_PIN, LOW);
-  digitalWrite(RISER_CYLINDER_PIN, LOW);
+  digitalWrite(PUSH_CYLINDER_PIN, HIGH);
+  digitalWrite(RISER_CYLINDER_PIN, HIGH);
+  digitalWrite(EJECTION_CYLINDER_PIN, HIGH);
 }
 
 void RouterController::loop() {
@@ -39,19 +40,19 @@ void RouterController::updateState() {
   switch (currentState) {
     case RouterState::WAITING_FOR_PUSH:
       if (currentTime - stateStartTime >= SENSOR_DELAY_TIME) {
+        currentState = RouterState::PUSHING;
         activatePushCylinder();
         stateStartTime = currentTime;
-        currentState = RouterState::PUSHING;
         broadcastState();
       }
       break;
 
     case RouterState::PUSHING:
       if (!isSensor1Active() && (currentTime - stateStartTime >= pushTime)) {
+        currentState = RouterState::RAISING;
         deactivatePushCylinder();
         activateRiserCylinder();
         stateStartTime = currentTime;
-        currentState = RouterState::RAISING;
         broadcastState();
       }
       break;
@@ -75,7 +76,7 @@ void RouterController::updateState() {
 
     case RouterState::EJECTING:
       if (currentTime - stateStartTime >= ejectionTime) {
-        digitalWrite(EJECTION_CYLINDER_PIN, LOW);
+        digitalWrite(EJECTION_CYLINDER_PIN, HIGH);
         ejectionCylinderState = false;
         lowerAndWait();
         broadcastState();
@@ -106,28 +107,27 @@ void RouterController::startCycle() {
 }
 
 void RouterController::activatePushCylinder() {
-  digitalWrite(PUSH_CYLINDER_PIN, HIGH);
+  digitalWrite(PUSH_CYLINDER_PIN, LOW);
   pushCylinderState = true;
   Serial.println("DEBUG: Push cylinder activated");
-  broadcastState();
 }
 
 void RouterController::deactivatePushCylinder() {
-  digitalWrite(PUSH_CYLINDER_PIN, LOW);
+  digitalWrite(PUSH_CYLINDER_PIN, HIGH);
   pushCylinderState = false;
   Serial.println("DEBUG: Push cylinder deactivated");
   broadcastState();
 }
 
 void RouterController::activateRiserCylinder() {
-  digitalWrite(RISER_CYLINDER_PIN, HIGH);
+  digitalWrite(RISER_CYLINDER_PIN, LOW);
   riserCylinderState = true;
   Serial.println("DEBUG: Riser cylinder activated");
   broadcastState();
 }
 
 void RouterController::deactivateRiserCylinder() {
-  digitalWrite(RISER_CYLINDER_PIN, LOW);
+  digitalWrite(RISER_CYLINDER_PIN, HIGH);
   riserCylinderState = false;
   Serial.println("DEBUG: Riser cylinder deactivated");
   broadcastState();
@@ -168,7 +168,7 @@ void RouterController::abortAnalysis() {
 }
 
 void RouterController::startEjection() {
-  digitalWrite(EJECTION_CYLINDER_PIN, HIGH);
+  digitalWrite(EJECTION_CYLINDER_PIN, LOW);
   ejectionCylinderState = true;
   Serial.println("DEBUG: Ejection cylinder activated");
   stateStartTime = millis();

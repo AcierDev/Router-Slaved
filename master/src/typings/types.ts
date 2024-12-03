@@ -1,9 +1,21 @@
 export interface SlaveState {
   status: string;
-  router_state: number;
+  router_state: RouterState;
   push_cylinder: "ON" | "OFF";
   riser_cylinder: "ON" | "OFF";
-  sensor1: boolean;
+  ejection_cylinder: "ON" | "OFF";
+  sensor1: "ON" | "OFF";
+}
+
+export enum RouterState {
+  IDLE,
+  WAITING_FOR_PUSH,
+  PUSHING,
+  RAISING,
+  WAITING_FOR_ANALYSIS,
+  EJECTING,
+  LOWERING,
+  ERROR,
 }
 
 export type State = "IDLE";

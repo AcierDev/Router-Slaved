@@ -76,7 +76,6 @@ export class SerialCommunication {
     this.parser!.on("data", (data: string) => {
       if (data.startsWith("WARNING")) {
         const message = data.slice(8);
-        console.log(chalk.yellow(`Warning from slave: ${message}`));
         callback(message);
       }
     });
@@ -87,7 +86,6 @@ export class SerialCommunication {
     this.parser!.on("data", (data: string) => {
       if (data.startsWith("ERROR")) {
         const message = data.slice(6);
-        console.log(chalk.red(`Error from slave: ${message}`));
         callback(message);
       }
     });
@@ -101,11 +99,8 @@ export class SerialCommunication {
   onDebug(callback: (data: string) => void): void {
     this.checkConnection();
     this.parser!.on("data", (data: string) => {
-      // Change from data.trim().startsWith("DEBUG") to data.startsWith("DEBUG:")
       if (data.startsWith("DEBUG:")) {
-        // Change slice(6) to slice(7) to account for the colon
         const message = data.slice(7);
-        console.log(chalk.blue(`Debug from slave: ${message}`));
         callback(message);
       }
     });
