@@ -2,7 +2,7 @@
   "slave": {
     "pushTime": 1000,
     "riserTime": 1000,
-    "ejectionTime": 10000,
+    "ejectionTime": 9500,
     "analysisMode": true
   },
   "ejection": {

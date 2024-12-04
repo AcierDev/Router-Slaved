@@ -55,6 +55,10 @@ export class Master {
     await this.settingsManager.loadSettings();
     console.log(chalk.green("✓ Settings loaded successfully"));
 
+    // Initialize WebSocket server with current settings
+    const settings = this.settingsManager.getSettings();
+    this.wss.broadcastSettings(settings);
+
     // Initialize Android connection
     console.log(chalk.cyan("📱 Connecting to Android device..."));
     const androidConnected = await this.androidController.init();

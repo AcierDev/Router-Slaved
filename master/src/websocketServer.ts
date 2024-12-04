@@ -8,12 +8,45 @@ import {
   Settings,
   DetectionResponse,
 } from "./typings/types";
+import chalk from "chalk";
 
 export class WebSocketServer {
   private wss: WSServer;
+  private connectedClients: number = 0;
+  private currentSettings: Settings | null = null;
 
   constructor(port: number) {
     this.wss = new WSServer({ port });
+    console.log(chalk.cyan(`🌐 WebSocket server started on port ${port}`));
+
+    // Setup connection handling
+    this.wss.on("connection", (ws, req) => {
+      this.connectedClients++;
+      const clientIp = req.socket.remoteAddress;
+      console.log(chalk.green(`📱 New client connected from ${clientIp}`));
+      console.log(
+        chalk.cyan(`👥 Total connected clients: ${this.connectedClients}`)
+      );
+
+      // Send current settings to new client if available
+      if (this.currentSettings) {
+        ws.send(
+          JSON.stringify({
+            type: "settingsUpdate",
+            data: this.currentSettings,
+          })
+        );
+      }
+
+      // Handle client disconnection
+      ws.on("close", () => {
+        this.connectedClients--;
+        console.log(chalk.yellow(`📴 Client disconnected from ${clientIp}`));
+        console.log(
+          chalk.cyan(`👥 Total connected clients: ${this.connectedClients}`)
+        );
+      });
+    });
   }
 
   broadcastState(state: SlaveState): void {
@@ -21,6 +54,7 @@ export class WebSocketServer {
   }
 
   broadcastSettings(settings: Settings): void {
+    this.currentSettings = settings; // Store the current settings
     this.broadcast("settingsUpdate", settings);
   }
 
@@ -115,5 +149,9 @@ export class WebSocketServer {
       message,
       level,
     });
+  }
+
+  getConnectedClientsCount(): number {
+    return this.connectedClients;
   }
 }
