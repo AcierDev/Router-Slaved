@@ -142,7 +142,7 @@ void RouterController::startAnalysis() {
   currentState = RouterState::WAITING_FOR_ANALYSIS;
   analysisComplete = false;
   // Signal to master to start analysis
-  Serial.println("STATE_REQUEST ANALYSIS_START");
+  Serial.println("SLAVE_REQUEST ANALYSIS_START");
 }
 
 void RouterController::handleAnalysisResult(bool eject) {

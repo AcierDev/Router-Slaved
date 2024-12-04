@@ -11,12 +11,75 @@ export class SettingsManager {
       slave: {
         pushTime: 0,
         riserTime: 0,
+        ejectionTime: 0,
+        analysisMode: false,
       },
       ejection: {
-        confidenceThreshold: 0.5,
-        maxDefects: 3,
-        minArea: 100,
-        maxArea: 10000,
+        globalSettings: {
+          requireMultipleDefects: true,
+          minTotalArea: 1000,
+          maxDefectsBeforeEject: 3,
+        },
+        perClassSettings: {
+          knot: {
+            enabled: true,
+            minConfidence: 0.5,
+            minArea: 100,
+            maxCount: 2,
+          },
+          corner: {
+            enabled: false,
+            minConfidence: 0.5,
+            minArea: 100,
+            maxCount: 2,
+          },
+          crack: {
+            enabled: false,
+            minConfidence: 0.5,
+            minArea: 100,
+            maxCount: 2,
+          },
+          damage: {
+            enabled: false,
+            minConfidence: 0.5,
+            minArea: 100,
+            maxCount: 2,
+          },
+          edge: {
+            enabled: false,
+            minConfidence: 0.5,
+            minArea: 100,
+            maxCount: 2,
+          },
+          router: {
+            enabled: false,
+            minConfidence: 0.5,
+            minArea: 100,
+            maxCount: 2,
+          },
+          side: {
+            enabled: false,
+            minConfidence: 0.5,
+            minArea: 100,
+            maxCount: 2,
+          },
+          tearout: {
+            enabled: false,
+            minConfidence: 0.5,
+            minArea: 100,
+            maxCount: 2,
+          },
+        },
+        advancedSettings: {
+          considerOverlap: true,
+          regionOfInterest: {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+          },
+          exclusionZones: [],
+        },
       },
     };
   }

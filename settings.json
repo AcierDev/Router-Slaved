@@ -1,17 +1,14 @@
 {
   "slave": {
-    "pushTime": 6800,
-    "riserTime": 4900,
-    "ejectionTime": 1000
+    "pushTime": 1000,
+    "riserTime": 1000,
+    "ejectionTime": 1000,
+    "analysisMode": true
   },
   "ejection": {
-    "confidenceThreshold": 0.5,
-    "maxDefects": 3,
-    "minArea": 100,
-    "maxArea": 10000,
     "globalSettings": {
       "requireMultipleDefects": false,
-      "minTotalArea": 1001,
+      "minTotalArea": 100,
       "maxDefectsBeforeEject": 5
     },
     "perClassSettings": {

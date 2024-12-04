@@ -20,23 +20,6 @@ export enum RouterState {
 
 export type State = "IDLE";
 
-export type SlaveSettings = {
-  pushTime: number;
-  riserTime: number;
-};
-
-export type EjectionSettings = {
-  confidenceThreshold: number; // Minimum confidence level to consider a detection valid
-  maxDefects: number; // Maximum number of defects allowed before rejection
-  minArea: number; // Minimum area size to consider for analysis
-  maxArea: number; // Maximum area size to consider for analysis
-};
-
-export type Settings = {
-  slave: SlaveSettings;
-  ejection: EjectionSettings;
-};
-
 export type SettingsKeys = "sensorThreshold";
 
 export type Command =
@@ -60,3 +43,91 @@ export interface ExtendedState extends SlaveState {
   isCapturing: boolean;
   isAnalyzing: boolean;
 }
+
+export type ClassName =
+  | "corner"
+  | "crack"
+  | "damage"
+  | "edge"
+  | "knot"
+  | "router"
+  | "side"
+  | "tearout";
+
+export interface FileInfo {
+  original_filename: string;
+  stored_locations: {
+    count_based: string;
+    defect_types: string[];
+  };
+}
+
+export interface BoundingBox {
+  0: number; // x1
+  1: number; // y1
+  2: number; // x2
+  3: number; // y2
+}
+
+export interface Prediction {
+  bbox: BoundingBox;
+  class_name: ClassName;
+  confidence: number;
+  detection_id: string;
+}
+
+export interface DetectionResponse {
+  data: {
+    file_info: FileInfo;
+    predictions: Prediction[];
+  };
+  success: boolean;
+  timestamp: string;
+  processingTime: number;
+}
+
+export interface Region {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface GlobalSettings {
+  requireMultipleDefects: boolean;
+  minTotalArea: number;
+  maxDefectsBeforeEject: number;
+}
+
+export type PerClassSettings = {
+  [className in ClassName]: {
+    enabled: boolean;
+    minConfidence: number;
+    minArea: number;
+    maxCount: number;
+  };
+};
+
+export interface AdvancedSettings {
+  considerOverlap: boolean;
+  regionOfInterest: Region;
+  exclusionZones: Region[];
+}
+
+export interface EjectionSettings {
+  globalSettings: GlobalSettings;
+  perClassSettings: PerClassSettings;
+  advancedSettings: AdvancedSettings;
+}
+
+export type SlaveSettings = {
+  pushTime: number;
+  riserTime: number;
+  ejectionTime: number;
+  analysisMode: boolean;
+};
+
+export type Settings = {
+  slave: SlaveSettings;
+  ejection: EjectionSettings;
+};
