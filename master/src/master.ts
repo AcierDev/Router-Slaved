@@ -159,9 +159,11 @@ export class Master {
 
   private async handleAnalysisRequest(): Promise<void> {
     console.log(chalk.cyan("📸 Analysis request received"));
-    this.wss.broadcastLog("Starting analysis...", "info");
+    this.wss.broadcastLog("Starting image capture...", "info");
 
     this.currentState.isCapturing = true;
+    this.currentState.isAnalyzing = false;
+    this.currentState.status = "CAPTURING";
     this.wss.broadcastState(this.currentState);
 
     try {
@@ -186,6 +188,8 @@ export class Master {
       this.wss.broadcastState(this.currentState);
 
       if (!photoPath) {
+        this.currentState.isAnalyzing = false; // Reset analyzing state on error
+        this.wss.broadcastState(this.currentState);
         console.log(chalk.red("✗ Failed to capture photo"));
         this.wss.broadcastLog("Failed to capture photo", "error");
         this.serial.sendCommand("ANALYSIS_RESULT FALSE");
@@ -216,6 +220,10 @@ export class Master {
 
       try {
         console.log(chalk.cyan("🔍 Analyzing image..."));
+        this.wss.broadcastLog("Starting analysis...", "info");
+
+        this.currentState.isAnalyzing = true; // Set analyzing state to true
+        this.wss.broadcastState(this.currentState);
         const analysisResult = await this.analysisService.analyzeImage(
           photoPath
         );
@@ -224,23 +232,36 @@ export class Master {
           throw new Error("Analysis failed");
         }
 
+        console.log(
+          chalk.cyan("Analysis result:"),
+          JSON.stringify(analysisResult)
+        );
+        this.wss.broadcastAnalysisResults(analysisResult);
+
         const shouldEjectResult = this.analysisService.shouldEject(
           analysisResult.data.predictions,
           this.settingsManager.getEjectionSettings()
         );
 
+        console.log(chalk.cyan("Ejection decision:"), shouldEjectResult);
+        this.wss.broadcastEjectionDecision(shouldEjectResult.decision);
+
         console.log(
           chalk.green(
             `✓ Analysis complete. Ejection decision: ${
-              shouldEjectResult ? "EJECT" : "PASS"
+              shouldEjectResult.decision ? "EJECT" : "PASS"
             }`
           )
         );
         this.serial.sendCommand(
-          `ANALYSIS_RESULT ${shouldEjectResult ? "TRUE" : "FALSE"}`
+          `ANALYSIS_RESULT ${shouldEjectResult.decision ? "TRUE" : "FALSE"}`
         );
         this.wss.broadcastLog(
-          `Analysis complete. Ejection decision: ${shouldEjectResult}`,
+          `Analysis complete. Ejection decision: ${
+            shouldEjectResult.decision
+              ? `EJECT: ${shouldEjectResult.reasons.join(", ")}`
+              : "PASS"
+          }`,
           "info"
         );
       } catch (error) {
@@ -258,9 +279,13 @@ export class Master {
           "error"
         );
         this.serial.sendCommand("ANALYSIS_RESULT FALSE");
+      } finally {
+        this.currentState.isAnalyzing = false; // Reset analyzing state after completion
+        this.wss.broadcastState(this.currentState);
       }
     } catch (error) {
       this.currentState.isCapturing = false;
+      this.currentState.isAnalyzing = false; // Reset analyzing state on error
       this.wss.broadcastState(this.currentState);
 
       console.log(

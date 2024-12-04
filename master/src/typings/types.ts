@@ -94,9 +94,9 @@ export interface Region {
 }
 
 export interface GlobalSettings {
-  requireMultipleDefects: boolean;
   minTotalArea: number;
   maxDefectsBeforeEject: number;
+  requireMultipleDefects?: boolean;
 }
 
 export type PerClassSettings = {
@@ -109,9 +109,9 @@ export type PerClassSettings = {
 };
 
 export interface AdvancedSettings {
-  considerOverlap: boolean;
-  regionOfInterest: Region;
+  regionOfInterest?: Region;
   exclusionZones: Region[];
+  considerOverlap?: boolean;
 }
 
 export interface EjectionSettings {

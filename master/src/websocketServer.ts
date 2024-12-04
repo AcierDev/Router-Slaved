@@ -6,6 +6,7 @@ import {
   WebSocketMessage,
   AnalysisImage,
   Settings,
+  DetectionResponse,
 } from "./typings/types";
 
 export class WebSocketServer {
@@ -29,6 +30,14 @@ export class WebSocketServer {
 
   broadcastError(message: string): void {
     this.broadcast("error", { message });
+  }
+
+  broadcastAnalysisResults(results: DetectionResponse): void {
+    this.broadcast("analysis_results", results);
+  }
+
+  broadcastEjectionDecision(decision: boolean): void {
+    this.broadcast("ejection_decision", { decision });
   }
 
   broadcastAnalysisImage(imageData: AnalysisImage): void {

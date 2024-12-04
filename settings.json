@@ -9,7 +9,7 @@
     "globalSettings": {
       "requireMultipleDefects": false,
       "minTotalArea": 100,
-      "maxDefectsBeforeEject": 5
+      "maxDefectsBeforeEject": 1
     },
     "perClassSettings": {
       "corner": {
