@@ -14,21 +14,22 @@ export class SerialCommunication {
   }
 
   async connect(): Promise<boolean> {
+    console.log(chalk.cyan("🔍 Detecting microcontroller port..."));
     const portPath = await detectMicrocontrollerPort();
     if (!portPath) {
-      console.error(chalk.red("Microcontroller not found"));
+      console.error(chalk.red("✗ Microcontroller not found"));
       return false;
     }
 
     try {
       this.port = new SerialPort({ path: portPath, baudRate: 115200 });
       this.parser = this.port.pipe(new ReadlineParser({ delimiter: "\r\n" }));
-      console.log(
-        chalk.green(`Connected to microcontroller on port ${portPath}`)
-      );
+      console.log(chalk.green(`✓ Connected to microcontroller on ${portPath}`));
       return true;
     } catch (error) {
-      console.error(chalk.red("Error connecting to microcontroller:"), error);
+      console.error(
+        chalk.red(`✗ Error connecting to microcontroller: ${error}`)
+      );
       return false;
     }
   }
@@ -42,13 +43,14 @@ export class SerialCommunication {
   sendCommand(command: Command): void {
     this.checkConnection();
     try {
+      console.log(chalk.cyan(`📤 Sending command: ${command}`));
       this.port!.write(`${command}\n`, (err) => {
         if (err) {
-          console.error(chalk.red(`Error sending command: ${err.message}`));
+          console.error(chalk.red(`✗ Error sending command: ${err.message}`));
         }
       });
     } catch (error) {
-      console.error(chalk.red(`Failed to send command: ${error}`));
+      console.error(chalk.red(`✗ Failed to send command: ${error}`));
     }
   }
 

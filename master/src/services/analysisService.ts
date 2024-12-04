@@ -1,6 +1,5 @@
 import axios from "axios";
-import FormData from "form-data";
-import fs from "fs/promises";
+import fs from "fs";
 import path from "path";
 import {
   BoundingBox,
@@ -20,24 +19,22 @@ export class AnalysisService {
 
   async analyzeImage(imagePath: string): Promise<DetectionResponse> {
     const formData = new FormData();
-    formData.append("file", await fs.readFile(imagePath), {
-      filename: path.basename(imagePath),
-      contentType: "image/jpeg",
-    });
+    const imageBuffer = await fs.promises.readFile(imagePath);
+    formData.append("image", new Blob([imageBuffer]), path.basename(imagePath));
 
     try {
-      const response = await axios.post(
-        `${this.apiUrl}/detect-imperfection`,
-        formData,
-        {
-          headers: {
-            ...formData.getHeaders(),
-          },
-          timeout: 30000,
-        }
-      );
+      const response = await fetch(`${this.apiUrl}/detect-imperfection`, {
+        method: "POST",
+        body: formData,
+      });
 
-      return response.data as DetectionResponse;
+      if (!response.ok) {
+        throw new Error(`Detection API returned ${response.status}`);
+      }
+
+      const results: DetectionResponse = await response.json();
+
+      return results;
     } catch (error) {
       throw new Error(
         `Analysis request failed: ${

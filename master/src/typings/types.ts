@@ -7,6 +7,11 @@ export interface SlaveState {
   sensor1: "ON" | "OFF";
 }
 
+export interface ExtendedState extends SlaveState {
+  isCapturing: boolean;
+  isAnalyzing: boolean;
+}
+
 export enum RouterState {
   IDLE,
   WAITING_FOR_PUSH,
@@ -37,11 +42,6 @@ export interface AnalysisImage {
 export interface WebSocketMessage {
   type: "state" | "settings" | "warning" | "error" | "analysis_image" | "log";
   data: SlaveState | Settings | { message: string } | AnalysisImage;
-}
-
-export interface ExtendedState extends SlaveState {
-  isCapturing: boolean;
-  isAnalyzing: boolean;
 }
 
 export type ClassName =

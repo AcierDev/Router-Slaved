@@ -10,6 +10,12 @@ import path from "path";
 import fs from "fs/promises";
 import chalk from "chalk";
 
+// Add this utility function
+async function imageToBase64(imagePath: string): Promise<string> {
+  const imageBuffer = await fs.readFile(imagePath);
+  return imageBuffer.toString("base64");
+}
+
 export class Master {
   private serial: SerialCommunication;
   private wss: WebSocketServer;
@@ -45,18 +51,28 @@ export class Master {
   }
 
   async init(): Promise<void> {
+    console.log(chalk.cyan("🚀 Initializing Router Control System..."));
     await this.settingsManager.loadSettings();
+    console.log(chalk.green("✓ Settings loaded successfully"));
 
     // Initialize Android connection
+    console.log(chalk.cyan("📱 Connecting to Android device..."));
     const androidConnected = await this.androidController.init();
     if (!androidConnected) {
-      console.log(chalk.yellow("Warning: Failed to connect to Android device"));
+      console.log(
+        chalk.yellow("⚠️  Warning: Failed to connect to Android device")
+      );
+    } else {
+      console.log(chalk.green("✓ Android device connected successfully"));
     }
 
+    console.log(chalk.cyan("🔌 Connecting to microcontroller..."));
     const serialConnected = await this.serial.connect();
     if (!serialConnected) {
+      console.log(chalk.red("✗ Failed to connect to microcontroller"));
       throw new Error("Failed to connect to microcontroller");
     }
+    console.log(chalk.green("✓ Microcontroller connected successfully"));
 
     this.setupSerialListeners();
     this.setupWebSocketListeners();
@@ -142,39 +158,64 @@ export class Master {
   }
 
   private async handleAnalysisRequest(): Promise<void> {
+    console.log(chalk.cyan("📸 Analysis request received"));
     this.wss.broadcastLog("Starting analysis...", "info");
 
     this.currentState.isCapturing = true;
     this.wss.broadcastState(this.currentState);
 
     try {
-      // Create temp directory for debug images
+      console.log(chalk.cyan("📁 Creating debug directory..."));
       const debugDir = path.join(os.tmpdir(), "router-control-debug");
       await fs.mkdir(debugDir, { recursive: true });
 
       // Check Android connection
+      console.log(chalk.cyan("📱 Checking Android connection..."));
       if (!(await this.androidController.checkConnection())) {
+        console.log(chalk.red("✗ Android device not connected"));
         this.wss.broadcastLog("Android device not connected", "error");
         this.serial.sendCommand("ANALYSIS_RESULT FALSE");
         return;
       }
 
       // Capture photo
+      console.log(chalk.cyan("📸 Capturing photo..."));
       const photoPath = await this.androidController.capturePhoto();
 
       this.currentState.isCapturing = false;
       this.wss.broadcastState(this.currentState);
 
       if (!photoPath) {
+        console.log(chalk.red("✗ Failed to capture photo"));
         this.wss.broadcastLog("Failed to capture photo", "error");
         this.serial.sendCommand("ANALYSIS_RESULT FALSE");
         return;
       }
 
+      console.log(chalk.green(`✓ Photo captured successfully: ${photoPath}`));
       this.wss.broadcastLog(`Photo captured at: ${photoPath}`, "info");
 
+      // Convert and send image to frontend
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const imageData = await imageToBase64(photoPath);
+
+      // Save debug files
+      const debugPhotoPath = path.join(debugDir, `original-${timestamp}.jpg`);
+      await fs.copyFile(photoPath, debugPhotoPath);
+
+      const imageDataWithPrefix = `data:image/jpeg;base64,${imageData}`;
+
+      // Send to frontend
+      this.wss.broadcastLog("Sending image to frontend...", "info");
+      this.wss.broadcastAnalysisImage({
+        timestamp,
+        imageData: imageDataWithPrefix,
+        path: photoPath,
+      });
+      this.wss.broadcastLog("Image sent to frontend", "info");
+
       try {
-        // Analyze the image
+        console.log(chalk.cyan("🔍 Analyzing image..."));
         const analysisResult = await this.analysisService.analyzeImage(
           photoPath
         );
@@ -183,23 +224,33 @@ export class Master {
           throw new Error("Analysis failed");
         }
 
-        // Determine if we should eject based on the analysis
         const shouldEjectResult = this.analysisService.shouldEject(
           analysisResult.data.predictions,
           this.settingsManager.getEjectionSettings()
         );
 
-        // Send the result to the slave
+        console.log(
+          chalk.green(
+            `✓ Analysis complete. Ejection decision: ${
+              shouldEjectResult ? "EJECT" : "PASS"
+            }`
+          )
+        );
         this.serial.sendCommand(
           `ANALYSIS_RESULT ${shouldEjectResult ? "TRUE" : "FALSE"}`
         );
-
-        // Broadcast results to frontend
         this.wss.broadcastLog(
           `Analysis complete. Ejection decision: ${shouldEjectResult}`,
           "info"
         );
       } catch (error) {
+        console.log(
+          chalk.red(
+            `✗ Analysis failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        );
         this.wss.broadcastLog(
           `Failed to process image: ${
             error instanceof Error ? error.message : String(error)
@@ -212,6 +263,13 @@ export class Master {
       this.currentState.isCapturing = false;
       this.wss.broadcastState(this.currentState);
 
+      console.log(
+        chalk.red(
+          `✗ Analysis error: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      );
       this.wss.broadcastLog(
         `Analysis error: ${
           error instanceof Error ? error.message : String(error)
@@ -225,12 +283,12 @@ export class Master {
 
 // Handle process termination
 process.on("SIGINT", () => {
-  console.log(chalk.yellow("\nReceived SIGINT. Cleaning up..."));
+  console.log(chalk.yellow("\n👋 Gracefully shutting down..."));
   process.exit(0);
 });
 
 const master = new Master();
 master.init().catch((error) => {
-  console.error(chalk.red("Error initializing master:"), error);
+  console.error(chalk.red("💥 Fatal Error:"), error);
   process.exit(1);
 });
