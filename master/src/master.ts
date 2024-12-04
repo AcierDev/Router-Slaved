@@ -106,6 +106,10 @@ export class Master {
       console.log(chalk.red(`Error from slave: ${message}`));
     });
 
+    this.serial.onDebug((data: string) => {
+      console.log(chalk.gray(`Debug: ${data}`));
+    });
+
     this.serial.onRawData((data: string) => {
       if (data.includes("SLAVE_REQUEST ANALYSIS_START")) {
         this.handleAnalysisRequest();
@@ -252,6 +256,10 @@ export class Master {
               shouldEjectResult.decision ? "EJECT" : "PASS"
             }`
           )
+        );
+        console.log(
+          chalk.cyan("Sending analysis result to slave:"),
+          shouldEjectResult.decision
         );
         this.serial.sendCommand(
           `ANALYSIS_RESULT ${shouldEjectResult.decision ? "TRUE" : "FALSE"}`

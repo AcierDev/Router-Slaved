@@ -147,17 +147,24 @@ void RouterController::startAnalysis() {
 
 void RouterController::handleAnalysisResult(bool eject) {
   if (currentState != RouterState::WAITING_FOR_ANALYSIS) {
+    Serial.println("DEBUG: Ignoring analysis result - not in waiting state");
     return;
   }
 
   analysisComplete = true;
   shouldEject = eject;
 
+  Serial.print("DEBUG: Processing analysis result: ");
+  Serial.println(eject ? "EJECT" : "PASS");
+
   if (eject) {
+    Serial.println("DEBUG: Starting ejection sequence");
     startEjection();
   } else {
+    Serial.println("DEBUG: No ejection needed, lowering");
     lowerAndWait();
   }
+  broadcastState();
 }
 
 void RouterController::abortAnalysis() {
@@ -168,11 +175,13 @@ void RouterController::abortAnalysis() {
 }
 
 void RouterController::startEjection() {
+  Serial.println("DEBUG: startEjection called");
   digitalWrite(EJECTION_CYLINDER_PIN, LOW);
   ejectionCylinderState = true;
   Serial.println("DEBUG: Ejection cylinder activated");
   stateStartTime = millis();
   currentState = RouterState::EJECTING;
+  broadcastState();
 }
 
 void RouterController::lowerAndWait() {

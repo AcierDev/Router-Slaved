@@ -68,7 +68,15 @@ void SlaveController::processCommand(const String& command) {
   } else if (command == "ABORT_ANALYSIS") {
     router.abortCurrentAnalysis();
   } else if (command.startsWith("ANALYSIS_RESULT ")) {
-    bool shouldEject = command.substring(15) == "TRUE";
+    String result = command.substring(15);
+    result.trim();
+    bool shouldEject = (result == "TRUE");
+
+    Serial.print("DEBUG: Analysis result received. Raw value: '");
+    Serial.print(result);
+    Serial.println("'");
+    Serial.println(shouldEject ? "Decision: EJECT" : "Decision: PASS");
+
     router.handleAnalysisResult(shouldEject);
   } else {
     sendError("Unknown command: " + command);
