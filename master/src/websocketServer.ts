@@ -9,6 +9,7 @@ import {
   DetectionResponse,
 } from "./typings/types";
 import chalk from "chalk";
+import { CycleStats, DailyStats } from "./stats/StatsManager.js";
 
 export class WebSocketServer {
   private wss: WSServer;
@@ -87,6 +88,26 @@ export class WebSocketServer {
     });
   }
 
+  broadcastLog(
+    message: string,
+    level: "info" | "warn" | "error" = "info"
+  ): void {
+    const timestamp = new Date().toISOString();
+    this.broadcast("log", {
+      timestamp,
+      message,
+      level,
+    });
+  }
+
+  broadcastCycleStats(cycleStats: Partial<CycleStats>): void {
+    this.broadcast("cycle_stats", cycleStats);
+  }
+
+  broadcastDailyStats(dailyStats: DailyStats): void {
+    this.broadcast("daily_stats", dailyStats);
+  }
+
   private broadcast(type: string, data: any): void {
     //@ts-ignore
     const message: WebSocketMessage = { type, data };
@@ -136,18 +157,6 @@ export class WebSocketServer {
         console.error("WebSocket error:", error);
         this.broadcastError("WebSocket connection error");
       });
-    });
-  }
-
-  broadcastLog(
-    message: string,
-    level: "info" | "warn" | "error" = "info"
-  ): void {
-    const timestamp = new Date().toISOString();
-    this.broadcast("log", {
-      timestamp,
-      message,
-      level,
     });
   }
 

@@ -1,0 +1,118 @@
+{
+  "date": "2024-12-05",
+  "totalCycles": 38,
+  "successfulCycles": 38,
+  "failedCycles": 0,
+  "analysisTime": {
+    "min": 1851,
+    "max": 2569,
+    "avg": 2080,
+    "total": 79040
+  },
+  "captureTime": {
+    "min": 1205,
+    "max": 5524,
+    "avg": 1918.5,
+    "total": 72903
+  },
+  "cycleTime": {
+    "min": 0,
+    "max": 15973,
+    "avg": 5542.973684210527,
+    "total": 210633
+  },
+  "totalEjections": 24,
+  "totalDefectsFound": 50,
+  "defectsByType": {
+    "knot": {
+      "count": 30,
+      "totalArea": 2302357.4849178353,
+      "minArea": 1585.6393997928371,
+      "maxArea": 212494.48853615523,
+      "avgArea": 76745.24949726117,
+      "minConfidence": 0.40855443477630615,
+      "maxConfidence": 0.8475328683853149,
+      "avgConfidence": 0.5851548238538549
+    },
+    "damage": {
+      "count": 10,
+      "totalArea": 53322.7565717645,
+      "minArea": 82.6719576719578,
+      "maxArea": 51598.23703143808,
+      "avgArea": 5332.275657176449,
+      "minConfidence": 0.4053133428096771,
+      "maxConfidence": 0.7862198352813721,
+      "avgConfidence": 0.5078410161866083
+    },
+    "crack": {
+      "count": 4,
+      "totalArea": 143410.69503933258,
+      "minArea": 294.27280171327584,
+      "maxArea": 84003.7854133423,
+      "avgArea": 35852.673759833146,
+      "minConfidence": 0.4143441319465637,
+      "maxConfidence": 0.6919112205505371,
+      "avgConfidence": 0.5708043724298477
+    },
+    "edge": {
+      "count": 1,
+      "totalArea": 94.15417401528472,
+      "minArea": 94.15417401528472,
+      "maxArea": 94.15417401528472,
+      "avgArea": 94.15417401528472,
+      "minConfidence": 0.5417329668998718,
+      "maxConfidence": 0.5417329668998718,
+      "avgConfidence": 0.5417329668998718
+    },
+    "side": {
+      "count": 3,
+      "totalArea": 216.63114834411112,
+      "minArea": 48.99078973152959,
+      "maxArea": 94.15417401528472,
+      "avgArea": 72.21038278137037,
+      "minConfidence": 0.46739065647125244,
+      "maxConfidence": 0.6814222931861877,
+      "avgConfidence": 0.1805627014901903
+    },
+    "corner": {
+      "count": 2,
+      "totalArea": 531.5719394753793,
+      "minArea": 207.77343859354437,
+      "maxArea": 323.7985008818349,
+      "avgArea": 265.78596973768964,
+      "minConfidence": 0.4913715422153473,
+      "maxConfidence": 0.625542402267456,
+      "avgConfidence": 0.5584569722414017
+    }
+  },
+  "errors": [],
+  "ejectionRate": 63.1578947368421,
+  "successRate": 100,
+  "peakActivityHour": 18,
+  "cyclesByHour": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    14,
+    9,
+    15,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

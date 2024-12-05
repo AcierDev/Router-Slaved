@@ -9,6 +9,7 @@ import os from "os";
 import path from "path";
 import fs from "fs/promises";
 import chalk from "chalk";
+import { StatsManager } from "./stats/StatsManager.js";
 
 // Add this utility function
 async function imageToBase64(imagePath: string): Promise<string> {
@@ -24,6 +25,7 @@ export class Master {
   private androidController: AndroidController;
   private analysisService: AnalysisService;
   private cliHandler: CLIHandler;
+  private statsManager: StatsManager;
 
   constructor() {
     this.serial = new SerialCommunication();
@@ -31,6 +33,7 @@ export class Master {
     this.settingsManager = new SettingsManager("./settings.json");
     this.androidController = new AndroidController();
     this.analysisService = new AnalysisService();
+    this.statsManager = new StatsManager();
 
     this.currentState = {
       status: "IDLE",
@@ -83,6 +86,7 @@ export class Master {
     this.cliHandler.setup();
     this.sendInitialSettings();
     this.sendInitialState();
+    await this.statsManager.init();
   }
 
   private sendInitialState(): void {
@@ -91,6 +95,16 @@ export class Master {
 
   private setupSerialListeners(): void {
     this.serial.onStateUpdate((state: SlaveState) => {
+      console.log(
+        `[Master] State update - Sensor1: ${state.sensor1}, Previous: ${this.currentState.sensor1}`
+      );
+
+      if (state.sensor1 === "ON" && this.currentState.sensor1 === "OFF") {
+        console.log("[Master] Sensor1 ON trigger detected");
+        this.statsManager.startCycle();
+        this.statsManager.recordSensor1Trigger();
+      }
+
       this.currentState = {
         ...state,
         isCapturing: this.currentState.isCapturing,
@@ -190,7 +204,9 @@ export class Master {
 
       // Capture photo
       console.log(chalk.cyan("📸 Capturing photo..."));
+      const captureStartTime = Date.now();
       const photoPath = await this.androidController.capturePhoto();
+      this.statsManager.recordCaptureTime(Date.now() - captureStartTime);
 
       this.currentState.isCapturing = false;
       this.wss.broadcastState(this.currentState);
@@ -227,17 +243,18 @@ export class Master {
       this.wss.broadcastLog("Image sent to frontend", "info");
 
       try {
-        console.log(chalk.cyan("🔍 Analyzing image..."));
+        console.log(chalk.cyan("Starting analysis..."));
         this.wss.broadcastLog("Starting analysis...", "info");
-
-        this.currentState.isAnalyzing = true; // Set analyzing state to true
+        this.currentState.isAnalyzing = true;
         this.wss.broadcastState(this.currentState);
+
+        this.statsManager.startAnalysis();
         const analysisResult = await this.analysisService.analyzeImage(
           photoPath
         );
 
-        if (!analysisResult.success) {
-          throw new Error("Analysis failed");
+        if (!analysisResult) {
+          throw new Error("Analysis result is undefined");
         }
 
         console.log(
@@ -250,6 +267,23 @@ export class Master {
           analysisResult.data.predictions,
           this.settingsManager.getEjectionSettings()
         );
+
+        // Record analysis results with ejection reasons
+        this.statsManager.recordAnalysisResult(
+          shouldEjectResult.decision,
+          analysisResult.data.predictions,
+          analysisResult.data.predictions.reduce(
+            (sum, pred) => sum + this.analysisService.calculateArea(pred.bbox),
+            0
+          ),
+          shouldEjectResult.reasons
+        );
+
+        // Broadcast current cycle stats immediately after recording results
+        const currentCycleStats = this.statsManager.getCurrentCycleStats();
+        if (currentCycleStats) {
+          this.wss.broadcastCycleStats(currentCycleStats);
+        }
 
         console.log(chalk.cyan("Ejection decision:"), shouldEjectResult);
         this.wss.broadcastEjectionDecision(shouldEjectResult.decision);
@@ -314,6 +348,13 @@ export class Master {
         "error"
       );
       this.serial.sendCommand("ANALYSIS_RESULT FALSE");
+    } finally {
+      // End cycle and broadcast final stats
+      const stats = await this.statsManager.endCycle();
+      if (stats) {
+        this.wss.broadcastCycleStats(stats.cycleStats);
+        this.wss.broadcastDailyStats(stats.dailyStats);
+      }
     }
   }
 }

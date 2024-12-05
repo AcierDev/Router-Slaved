@@ -1,8 +1,8 @@
 {
   "slave": {
-    "pushTime": 1000,
-    "riserTime": 1000,
-    "ejectionTime": 9500,
+    "pushTime": 8100,
+    "riserTime": 100,
+    "ejectionTime": 100,
     "analysisMode": true
   },
   "ejection": {
@@ -38,7 +38,7 @@
       },
       "knot": {
         "enabled": true,
-        "minConfidence": 0.5,
+        "minConfidence": 0.85,
         "minArea": 100,
         "maxCount": 3
       },

@@ -275,7 +275,7 @@ export class AnalysisService {
     return totalOverlap;
   }
 
-  private calculateArea(bbox: BoundingBox): number {
+  public calculateArea(bbox: BoundingBox): number {
     // Convert relative coordinates to absolute area (assuming image dimensions of 1.0 x 1.0)
     const width = bbox[2] - bbox[0];
     const height = bbox[3] - bbox[1];
