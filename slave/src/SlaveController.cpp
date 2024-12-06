@@ -1,5 +1,11 @@
 #include "SlaveController.h"
 
+#include <EEPROM.h>
+#define BOOT_COUNT_ADDR 0
+#define HEARTBEAT_INTERVAL 1000  // Send heartbeat every 1 second
+
+#include <esp_task_wdt.h>
+
 SlaveController* SlaveController::instance = nullptr;
 
 String routerStateToString(RouterState state) {
@@ -31,15 +37,43 @@ SlaveController::SlaveController() : currentStatus(Status::IDLE) {
   instance = this;
   settings.pushTime = DEFAULT_PUSH_TIME;
   settings.riserTime = DEFAULT_RISER_TIME;
+  lastHeartbeatTime = 0;
+
+  // Read and increment boot count
+  EEPROM.begin(4);
+  bootCount = EEPROM.read(BOOT_COUNT_ADDR);
+  bootCount++;
+  EEPROM.write(BOOT_COUNT_ADDR, bootCount);
+  EEPROM.commit();
+
+  // Log boot count
+  Serial.print("DEBUG: Boot count: ");
+  Serial.println(bootCount);
+
   router.setStateChangeCallback(&SlaveController::staticSendState);
 }
 
 void SlaveController::setup() {
   Serial.begin(BAUD_RATE);
   router.setup();
+
+  // Configure watchdog
+  esp_task_wdt_init(5, true);  // 5 second timeout
+  esp_task_wdt_add(NULL);
 }
 
 void SlaveController::loop() {
+  unsigned long currentTime = millis();
+
+  // Send heartbeat
+  if (currentTime - lastHeartbeatTime >= HEARTBEAT_INTERVAL) {
+    sendHeartbeat();
+    lastHeartbeatTime = currentTime;
+  }
+
+  // Pat the watchdog
+  esp_task_wdt_reset();
+
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
     input.trim();
@@ -136,4 +170,15 @@ void SlaveController::sendWarning(const String& message) {
 void SlaveController::sendError(const String& message) {
   Serial.println("ERROR " + message);
   currentStatus = Status::ERROR;
+}
+
+void SlaveController::sendHeartbeat() {
+  StaticJsonDocument<100> doc;
+  doc["type"] = "heartbeat";
+  doc["uptime"] = millis();
+  doc["boot_count"] = bootCount;
+
+  String output;
+  serializeJson(doc, output);
+  Serial.println("HEARTBEAT " + output);
 }

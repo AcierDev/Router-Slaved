@@ -95,14 +95,22 @@ export class Master {
 
   private setupSerialListeners(): void {
     this.serial.onStateUpdate((state: SlaveState) => {
-      console.log(
-        `[Master] State update - Sensor1: ${state.sensor1}, Previous: ${this.currentState.sensor1}`
-      );
-
       if (state.sensor1 === "ON" && this.currentState.sensor1 === "OFF") {
-        console.log("[Master] Sensor1 ON trigger detected");
         this.statsManager.startCycle();
         this.statsManager.recordSensor1Trigger();
+      }
+
+      if (
+        state.router_state === RouterState.IDLE &&
+        this.currentState.router_state === RouterState.PUSHING
+      ) {
+        console.log("[Master] Cycle end detected");
+        this.statsManager.endCycle().then((stats) => {
+          if (stats) {
+            this.wss.broadcastCycleStats(stats.cycleStats);
+            this.wss.broadcastDailyStats(stats.dailyStats);
+          }
+        });
       }
 
       this.currentState = {
@@ -125,12 +133,18 @@ export class Master {
     });
 
     this.serial.onDebug((data: string) => {
-      console.log(chalk.gray(`Debug: ${data}`));
+      if (data.includes("Sensor 1 changed")) {
+        console.log(chalk.blue(`🔌 ${data}`));
+      } else {
+        console.log(chalk.gray(`Debug: ${data}`));
+      }
     });
 
     this.serial.onRawData((data: string) => {
       if (data.includes("SLAVE_REQUEST ANALYSIS_START")) {
         this.handleAnalysisRequest();
+      } else if (data.includes("SLAVE_REQUEST NON_ANALYSIS_CYCLE")) {
+        this.handleNonAnalysisCycle();
       }
     });
 
@@ -355,6 +369,29 @@ export class Master {
         this.wss.broadcastCycleStats(stats.cycleStats);
         this.wss.broadcastDailyStats(stats.dailyStats);
       }
+    }
+  }
+
+  private async handleNonAnalysisCycle(): Promise<void> {
+    console.log(chalk.cyan("📝 Recording non-analysis cycle"));
+
+    try {
+      // Record the cycle without analysis data
+      this.statsManager.recordAnalysisResult(
+        false, // no ejection
+        [], // no predictions
+        0, // no defect area
+        ["Non-analysis cycle"] // reason
+      );
+
+      // End cycle and broadcast final stats
+      const stats = await this.statsManager.endCycle();
+      if (stats) {
+        this.wss.broadcastCycleStats(stats.cycleStats);
+        this.wss.broadcastDailyStats(stats.dailyStats);
+      }
+    } catch (error) {
+      console.error(chalk.red("Error recording non-analysis cycle:"), error);
     }
   }
 }

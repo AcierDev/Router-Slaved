@@ -1,5 +1,7 @@
 #include "RouterController.h"
 
+#include <Bounce2.h>
+
 RouterController::RouterController()
     : currentState(RouterState::IDLE),
       cycleStartTime(0),
@@ -17,14 +19,27 @@ RouterController::RouterController()
 void RouterController::setup() {
   pinMode(PUSH_CYLINDER_PIN, OUTPUT);
   pinMode(RISER_CYLINDER_PIN, OUTPUT);
+  pinMode(EJECTION_CYLINDER_PIN, OUTPUT);
   pinMode(SENSOR1_PIN, INPUT);
 
-  digitalWrite(PUSH_CYLINDER_PIN, HIGH);
-  digitalWrite(RISER_CYLINDER_PIN, HIGH);
-  digitalWrite(EJECTION_CYLINDER_PIN, HIGH);
+  digitalWrite(PUSH_CYLINDER_PIN, LOW);
+  digitalWrite(RISER_CYLINDER_PIN, LOW);
+  digitalWrite(EJECTION_CYLINDER_PIN, LOW);
+
+  sensor1Debouncer.attach(SENSOR1_PIN, INPUT);
+  sensor1Debouncer.interval(SENSOR_DEBOUNCE_TIME);
 }
 
 void RouterController::loop() {
+  // Check for sensor state changes
+  bool currentSensor1State = isSensor1Active();
+  if (currentSensor1State != lastSensor1State) {
+    Serial.print("DEBUG: Sensor 1 changed to: ");
+    Serial.println(currentSensor1State ? "ON" : "OFF");
+    lastSensor1State = currentSensor1State;
+    broadcastState();
+  }
+
   // Check sensor in IDLE state
   if (currentState == RouterState::IDLE && isSensor1Active()) {
     startCycle();
@@ -49,9 +64,14 @@ void RouterController::updateState() {
 
     case RouterState::PUSHING:
       if (!isSensor1Active() && (currentTime - stateStartTime >= pushTime)) {
-        currentState = RouterState::RAISING;
         deactivatePushCylinder();
-        activateRiserCylinder();
+        if (analysisMode) {
+          currentState = RouterState::RAISING;
+          activateRiserCylinder();
+        } else {
+          Serial.println("SLAVE_REQUEST NON_ANALYSIS_CYCLE");
+          currentState = RouterState::LOWERING;
+        }
         stateStartTime = currentTime;
         broadcastState();
       }
@@ -62,6 +82,8 @@ void RouterController::updateState() {
         if (analysisMode) {
           startAnalysis();
         } else {
+          Serial.println(
+              "WARNING Unexpected state: RAISING in non-analysis mode");
           lowerAndWait();
         }
         broadcastState();
@@ -76,7 +98,7 @@ void RouterController::updateState() {
 
     case RouterState::EJECTING:
       if (currentTime - stateStartTime >= ejectionTime) {
-        digitalWrite(EJECTION_CYLINDER_PIN, HIGH);
+        digitalWrite(EJECTION_CYLINDER_PIN, LOW);
         ejectionCylinderState = false;
         lowerAndWait();
         broadcastState();
@@ -107,34 +129,35 @@ void RouterController::startCycle() {
 }
 
 void RouterController::activatePushCylinder() {
-  digitalWrite(PUSH_CYLINDER_PIN, LOW);
+  digitalWrite(PUSH_CYLINDER_PIN, HIGH);
   pushCylinderState = true;
   Serial.println("DEBUG: Push cylinder activated");
 }
 
 void RouterController::deactivatePushCylinder() {
-  digitalWrite(PUSH_CYLINDER_PIN, HIGH);
+  digitalWrite(PUSH_CYLINDER_PIN, LOW);
   pushCylinderState = false;
   Serial.println("DEBUG: Push cylinder deactivated");
   broadcastState();
 }
 
 void RouterController::activateRiserCylinder() {
-  digitalWrite(RISER_CYLINDER_PIN, LOW);
+  digitalWrite(RISER_CYLINDER_PIN, HIGH);
   riserCylinderState = true;
   Serial.println("DEBUG: Riser cylinder activated");
   broadcastState();
 }
 
 void RouterController::deactivateRiserCylinder() {
-  digitalWrite(RISER_CYLINDER_PIN, HIGH);
+  digitalWrite(RISER_CYLINDER_PIN, LOW);
   riserCylinderState = false;
   Serial.println("DEBUG: Riser cylinder deactivated");
   broadcastState();
 }
 
 bool RouterController::isSensor1Active() {
-  return digitalRead(SENSOR1_PIN) == LOW;
+  sensor1Debouncer.update();
+  return sensor1Debouncer.read() == LOW;
 }
 
 void RouterController::startAnalysis() {
@@ -176,7 +199,7 @@ void RouterController::abortAnalysis() {
 
 void RouterController::startEjection() {
   Serial.println("DEBUG: startEjection called");
-  digitalWrite(EJECTION_CYLINDER_PIN, LOW);
+  digitalWrite(EJECTION_CYLINDER_PIN, HIGH);
   ejectionCylinderState = true;
   Serial.println("DEBUG: Ejection cylinder activated");
   stateStartTime = millis();

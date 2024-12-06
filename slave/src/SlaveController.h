@@ -22,6 +22,8 @@ class SlaveController {
   Status currentStatus;
   Settings settings;
   RouterController router;
+  unsigned long lastHeartbeatTime;
+  unsigned long bootCount;
 
   void processCommand(const String& command);
   void updateSettings(const JsonObject& json);
@@ -34,4 +36,5 @@ class SlaveController {
   SlaveController();
   void setup();
   void loop();
+  void sendHeartbeat();
 };

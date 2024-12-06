@@ -269,6 +269,25 @@ export class StatsManager {
       this.currentCycle.duration = 0;
     }
 
+    if (!this.currentCycle.defectsFound) {
+      this.currentCycle.defectsFound = 0;
+    }
+    if (!this.currentCycle.totalDefectArea) {
+      this.currentCycle.totalDefectArea = 0;
+    }
+    if (!this.currentCycle.defectStats) {
+      this.currentCycle.defectStats = {};
+    }
+    if (!this.currentCycle.predictions) {
+      this.currentCycle.predictions = [];
+    }
+    if (!this.currentCycle.ejectionDecision) {
+      this.currentCycle.ejectionDecision = false;
+    }
+    if (!this.currentCycle.ejectionReasons) {
+      this.currentCycle.ejectionReasons = ["Non-analysis cycle"];
+    }
+
     await this.saveCycleStats(this.currentCycle as CycleStats);
     await this.updateDailyStats(this.currentCycle as CycleStats);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <Bounce2.h>
 
 #include "config.h"
 
@@ -33,6 +34,11 @@ class RouterController {
   bool pushCylinderState;
   bool riserCylinderState;
   bool ejectionCylinderState;
+
+  bool lastSensor1State = false;
+  unsigned long lastSensor1ChangeTime = 0;
+
+  Bounce sensor1Debouncer;
 
   void updateState();
   void startCycle();
