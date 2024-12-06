@@ -21,6 +21,8 @@ export class Master {
   private serial: SerialCommunication;
   private wss: WebSocketServer;
   private settingsManager: SettingsManager;
+  private platformIO: PlatformIOManager;
+  private currentState: SlaveState;
   private currentState: ExtendedState;
   private androidController: AndroidController;
   private analysisService: AnalysisService;
@@ -35,6 +37,8 @@ export class Master {
     this.analysisService = new AnalysisService();
     this.statsManager = new StatsManager();
 
+    const slavePath = path.join(__dirname, "../../slave");
+    this.platformIO = new PlatformIOManager(slavePath);
     this.currentState = {
       status: "IDLE",
       router_state: RouterState.IDLE,
@@ -54,7 +58,18 @@ export class Master {
   }
 
   async init(): Promise<void> {
-    console.log(chalk.cyan("🚀 Initializing Router Control System..."));
+    console.log("Initializing master...");
+    if (!(await this.platformIO.verifyPlatformIO())) {
+      throw new Error("PlatformIO CLI is required but not found");
+    }
+
+    const uploaded = await this.platformIO.uploadCode();
+    if (!uploaded) {
+      throw new Error("Failed to upload slave code");
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     await this.settingsManager.loadSettings();
     console.log(chalk.green("✓ Settings loaded successfully"));
 
