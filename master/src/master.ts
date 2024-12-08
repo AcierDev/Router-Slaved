@@ -10,6 +10,12 @@ import path from "path";
 import fs from "fs/promises";
 import chalk from "chalk";
 import { StatsManager } from "./stats/StatsManager.js";
+import { PlatformIOManager } from "./util/platformioManager.js";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Add this utility function
 async function imageToBase64(imagePath: string): Promise<string> {
@@ -22,7 +28,6 @@ export class Master {
   private wss: WebSocketServer;
   private settingsManager: SettingsManager;
   private platformIO: PlatformIOManager;
-  private currentState: SlaveState;
   private currentState: ExtendedState;
   private androidController: AndroidController;
   private analysisService: AnalysisService;
