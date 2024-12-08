@@ -61,16 +61,16 @@ void SlaveController::setup() {
 }
 
 void SlaveController::loop() {
-  unsigned long currentTime = millis();
-
-  // Add watchdog for serial connection
   static unsigned long lastSerialCheck = 0;
-  if (currentTime - lastSerialCheck >= 5000) {  // Check every 5 seconds
+  const unsigned long currentTime = millis();
+
+  // Monitor serial connection every second
+  if (currentTime - lastSerialCheck >= 1000) {
     if (!Serial) {
       Serial.end();
       delay(100);
       Serial.begin(BAUD_RATE);
-      Serial.println("DEBUG: Serial connection reinitialized");
+      Serial.println("DEBUG: Serial connection reestablished");
     }
     lastSerialCheck = currentTime;
   }

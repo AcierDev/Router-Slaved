@@ -8,22 +8,32 @@ import { EventEmitter } from "events";
 export class SerialCommunication {
   private port: SerialPort | null;
   private parser: ReadlineParser | null;
-  private lastHeartbeatTime: number = 0;
-  private heartbeatTimeout: number = 5000; // 5 seconds timeout
-  private bootCount: number = 0;
-  private heartbeatCheckInterval: NodeJS.Timeout | null = null;
-  private debug: boolean = false;
+  private lastHeartbeatTime: number;
+  private bootCount: number;
+  private debug: boolean;
+  private baudRate: number = 115200;
+  private heartbeatTimeout: number;
+  private heartbeatCheckInterval: NodeJS.Timeout | null;
   private eventEmitter: EventEmitter;
+  private maxReconnectAttempts: number = 5;
+  private reconnectAttempt: number = 0;
+  private baseReconnectDelay: number = 2000; // 2 seconds
+  private lastKnownState: string = "";
 
   constructor() {
     this.port = null;
     this.parser = null;
+    this.lastHeartbeatTime = 0;
+    this.bootCount = 0;
+    this.debug = false;
+    this.heartbeatTimeout = 5000;
+    this.heartbeatCheckInterval = null;
     this.eventEmitter = new EventEmitter();
   }
 
   async connect(): Promise<boolean> {
     console.log(chalk.cyan("🔍 Detecting microcontroller port..."));
-    const portPath = await detectMicrocontrollerPort();
+    const portPath = await this.detectPort();
     if (!portPath) {
       console.error(chalk.red("✗ Microcontroller not found"));
       return false;
@@ -81,93 +91,36 @@ export class SerialCommunication {
       throw new Error("Serial parser not initialized");
     }
 
-    // Add error handling for parser
-    this.parser.on("error", (error) => {
-      console.error(chalk.red("Parser error:"), error);
-      this.emit("error", `Parser error: ${error.message}`);
+    // Add port status monitoring
+    this.port?.on("open", () => {
+      console.log(chalk.green("Serial port opened"));
     });
 
-    // Add monitoring for data flow
-    let lastDataTime = Date.now();
-    let missedHeartbeats = 0;
-    const MAX_MISSED_HEARTBEATS = 3;
-    const HEARTBEAT_CHECK_INTERVAL = 1000;
-
-    const monitoringInterval = setInterval(() => {
-      const currentTime = Date.now();
-      const timeSinceLastData = currentTime - lastDataTime;
-      const timeSinceLastHeartbeat = currentTime - this.lastHeartbeatTime;
-
-      if (timeSinceLastData > 10000) {
-        console.error(chalk.red("No data received for 10 seconds"));
-        this.emit("warning", "No data received from slave for 10 seconds");
-      }
-
-      if (
-        this.lastHeartbeatTime !== 0 &&
-        timeSinceLastHeartbeat > this.heartbeatTimeout
-      ) {
-        missedHeartbeats++;
-        console.log(chalk.yellow(`⚠️ Missed heartbeat #${missedHeartbeats}`));
-
-        if (missedHeartbeats >= MAX_MISSED_HEARTBEATS) {
-          console.log(
-            chalk.red("Connection appears dead, attempting reconnection...")
-          );
-          this.attemptReconnection();
-          missedHeartbeats = 0;
-        }
-      } else {
-        missedHeartbeats = 0;
-      }
-    }, HEARTBEAT_CHECK_INTERVAL);
-
-    // Clean up interval on port close
     this.port?.on("close", () => {
-      clearInterval(monitoringInterval);
+      console.log(chalk.yellow("Serial port closed - Details:"));
+      console.log("Last known state:", this.lastKnownState);
+      console.log(
+        "Time since last heartbeat:",
+        Date.now() - this.lastHeartbeatTime
+      );
     });
 
-    this.parser.on("data", (data: string) => {
-      lastDataTime = Date.now();
-      if (data.startsWith("HEARTBEAT")) {
-        try {
-          const heartbeatData = JSON.parse(data.slice(9));
-          this.lastHeartbeatTime = Date.now();
-
-          if (heartbeatData.boot_count !== this.bootCount) {
-            this.bootCount = heartbeatData.boot_count;
-            console.log(
-              chalk.yellow(
-                `⚠️ Slave controller rebooted! Boot count: ${this.bootCount}`
-              )
-            );
-            this.emit(
-              "warning",
-              `Slave controller rebooted (boot #${this.bootCount})`
-            );
-          }
-
-          if (this.debug) {
-            console.log(
-              chalk.gray(
-                `💓 Heartbeat received - Uptime: ${heartbeatData.uptime}ms`
-              )
-            );
-          }
-        } catch (error) {
-          console.error(chalk.red("Error parsing heartbeat:", error));
-        }
-      }
-    });
-
-    // Handle port errors
     this.port?.on("error", (error) => {
-      console.error(chalk.red("Serial port error:"), error);
-      this.emit("error", `Serial port error: ${error.message}`);
+      console.log(chalk.red("Serial port error:"), error);
+      console.log("Error occurred during state:", this.lastKnownState);
+    });
 
-      // Attempt recovery on certain errors
-      if (error.message.includes("Resource temporarily unavailable")) {
-        setTimeout(() => this.attemptReconnection(), 2000);
+    // Track state changes
+    this.parser.on("data", (data: string) => {
+      if (data.includes("router_state")) {
+        try {
+          const stateData = JSON.parse(
+            data.includes("STATE") ? data.slice(6) : data.slice(9)
+          );
+          this.lastKnownState = stateData.router_state;
+        } catch (error) {
+          // Ignore parse errors for non-state messages
+        }
       }
     });
   }
@@ -274,30 +227,107 @@ export class SerialCommunication {
     return this.port;
   }
 
-  async attemptReconnection(): Promise<void> {
-    console.log(chalk.yellow("Attempting to reconnect..."));
+  private async attemptReconnection(): Promise<void> {
+    if (this.reconnectAttempt >= this.maxReconnectAttempts) {
+      console.error(chalk.red("Max reconnection attempts reached"));
+      this.emit("error", "Max reconnection attempts reached");
+      // Reset counter but stop trying
+      this.reconnectAttempt = 0;
+      return;
+    }
 
-    // Properly cleanup existing connection first
-    this.cleanup();
+    this.reconnectAttempt++;
+    console.log(
+      chalk.yellow(
+        `Reconnection attempt ${this.reconnectAttempt}/${this.maxReconnectAttempts}`
+      )
+    );
 
-    // Wait a moment for the port to be released
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Force close any existing connections
+    if (this.port) {
+      try {
+        await new Promise<void>((resolve) => {
+          this.port?.close(() => resolve());
+        });
+      } catch (error) {
+        console.error("Error closing port:", error);
+      }
+      this.port = null;
+    }
 
     try {
-      // Attempt to connect
-      const connected = await this.connect();
-      if (!connected) {
-        throw new Error("Reconnection failed");
+      // Try to detect and open port
+      const portPath = await this.detectPort();
+      if (!portPath) {
+        console.log(chalk.red("✗ Microcontroller not found"));
+        const delay =
+          this.baseReconnectDelay * Math.pow(2, this.reconnectAttempt - 1);
+        console.log(
+          chalk.yellow(`Waiting ${delay / 1000} seconds before next attempt...`)
+        );
+        setTimeout(() => this.attemptReconnection(), delay);
+        return;
       }
+
+      // Create new port instance
+      this.port = new SerialPort({
+        path: portPath,
+        baudRate: this.baudRate,
+        autoOpen: false,
+      });
+
+      // Open port with timeout
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Port open timeout"));
+        }, 5000);
+
+        this.port?.open((error) => {
+          clearTimeout(timeout);
+          if (error) {
+            // Check for specific error conditions
+            if (error.message.includes("Resource temporarily unavailable")) {
+              console.log(
+                chalk.yellow("Port is locked, waiting for release...")
+              );
+              setTimeout(() => this.attemptReconnection(), 5000);
+              resolve(); // Resolve without throwing to prevent unhandled rejection
+              return;
+            }
+            reject(error);
+          } else {
+            this.setupParser();
+            resolve();
+          }
+        });
+      });
+
+      console.log(chalk.green("✓ Reconnected successfully"));
+      // Reset attempt counter on successful connection
+      this.reconnectAttempt = 0;
     } catch (error) {
       console.error(chalk.red("Reconnection failed:"), error);
-      // Don't throw, just emit the error event
+      // Emit error but don't throw
       this.emit(
         "error",
         `Reconnection failed: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
+
+      // Calculate exponential backoff delay
+      const delay =
+        this.baseReconnectDelay * Math.pow(2, this.reconnectAttempt - 1);
+      setTimeout(() => this.attemptReconnection(), delay);
     }
+  }
+
+  private setupParser(): void {
+    this.parser = this.port!.pipe(new ReadlineParser({ delimiter: "\n" }));
+    this.setupSerialListeners();
+  }
+
+  private async detectPort(): Promise<string | null> {
+    return await detectMicrocontrollerPort();
   }
 }

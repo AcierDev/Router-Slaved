@@ -125,7 +125,18 @@ void RouterController::updateState() {
 
     case RouterState::LOWERING:
       if (currentTime - stateStartTime >= CYCLE_DELAY) {
+        // Add debug logging before state change
+        Serial.println("DEBUG: Completing lowering cycle");
+        Serial.printf(
+            "DEBUG: Cycle stats - Duration: %lu ms, State time: %lu ms\n",
+            currentTime - cycleStartTime, currentTime - stateStartTime);
+
+        lastCycleTime = currentTime - cycleStartTime;
         currentState = RouterState::IDLE;
+        cycleCount++;
+
+        // Add debug after state change
+        Serial.println("DEBUG: Transition to IDLE complete");
         broadcastState();
       }
       break;
