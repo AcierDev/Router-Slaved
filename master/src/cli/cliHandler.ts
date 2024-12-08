@@ -10,6 +10,7 @@ import {
 import { SettingsManager } from "../settings/settings.js";
 import { SerialCommunication } from "../serialCommunication.js";
 import { WebSocketServer } from "../websocketServer.js";
+import { Master } from "../master.js";
 
 export class CLIHandler {
   private rl: readline.Interface;
@@ -17,15 +18,18 @@ export class CLIHandler {
   private serial: SerialCommunication;
   private wss: WebSocketServer;
   private currentState: ExtendedState;
+  private master: Master;
 
   constructor(
     settingsManager: SettingsManager,
     serial: SerialCommunication,
-    wss: WebSocketServer
+    wss: WebSocketServer,
+    master: Master
   ) {
     this.settingsManager = settingsManager;
     this.serial = serial;
     this.wss = wss;
+    this.master = master;
 
     this.currentState = {
       status: "IDLE",
@@ -73,6 +77,9 @@ export class CLIHandler {
       case "EXIT":
       case "QUIT":
         this.cleanup();
+        break;
+      case "UPLOAD":
+        this.handleUpload();
         break;
       default:
         if (command.startsWith("SET ")) {
@@ -145,26 +152,30 @@ export class CLIHandler {
     console.log(chalk.green("Settings updated successfully"));
   }
 
+  private async handleUpload(): Promise<void> {
+    console.log(chalk.cyan("Starting slave code upload..."));
+    try {
+      const uploaded = await this.master.uploadSlave();
+      if (uploaded) {
+        console.log(chalk.green("✓ Slave code uploaded successfully"));
+      } else {
+        console.log(chalk.red("✗ Failed to upload slave code"));
+      }
+    } catch (error) {
+      console.error(chalk.red("Error uploading slave code:"), error);
+    }
+  }
+
   private showHelp(): void {
     console.log(
       chalk.cyan(`
 Available Commands:
   ${chalk.yellow("STATUS")}      - Show current state
   ${chalk.yellow("SETTINGS")}    - Show current settings
-  ${chalk.yellow(
-    "SET key=value"
-  )} - Update settings (e.g., SET slave.pushTime=3000)
+  ${chalk.yellow("SET key=value")} - Update settings
+  ${chalk.yellow("UPLOAD")}      - Upload code to slave
   ${chalk.yellow("HELP")}        - Show this help message
   ${chalk.yellow("EXIT/QUIT")}   - Exit the program
-
-Settings:
-  Slave Settings:
-    ${chalk.green("slave.pushTime")}    - Push cylinder activation time (ms)
-    ${chalk.green("slave.riserTime")}   - Riser cylinder activation time (ms)
-  
-  Ejection Settings:
-    ${chalk.green("ejection.maxDefects")}  - Maximum allowed defects
-    ${chalk.green("ejection.minArea")}     - Minimum area for analysis
     `)
     );
   }

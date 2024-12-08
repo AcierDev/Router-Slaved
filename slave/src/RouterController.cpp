@@ -51,6 +51,24 @@ void RouterController::loop() {
 
 void RouterController::updateState() {
   unsigned long currentTime = millis();
+  static unsigned long lastStateUpdate = 0;
+
+  // Add watchdog for state transitions
+  if (currentTime - lastStateUpdate > 10000) {  // 10 second timeout
+    Serial.println("ERROR: State transition timeout");
+    currentState = RouterState::ERROR;
+    deactivatePushCylinder();
+    deactivateRiserCylinder();
+    broadcastState();
+  }
+
+  // Add cycle completion tracking
+  if (currentState == RouterState::LOWERING &&
+      currentTime - stateStartTime >= CYCLE_DELAY) {
+    lastCycleTime = currentTime - cycleStartTime;
+    Serial.printf("DEBUG: Cycle %lu completed in %lu ms\n", cycleCount,
+                  lastCycleTime);
+  }
 
   switch (currentState) {
     case RouterState::WAITING_FOR_PUSH:
@@ -119,6 +137,8 @@ void RouterController::updateState() {
     default:
       break;
   }
+
+  lastStateUpdate = currentTime;
 }
 
 void RouterController::startCycle() {
@@ -129,14 +149,27 @@ void RouterController::startCycle() {
 }
 
 void RouterController::activatePushCylinder() {
+  // Disable interrupts briefly during solenoid switching
+  noInterrupts();
   digitalWrite(PUSH_CYLINDER_PIN, HIGH);
   pushCylinderState = true;
+  delayMicroseconds(500);  // Let EMI settle
+  interrupts();
+
+  // Small delay before serial communication
+  delay(10);
   Serial.println("DEBUG: Push cylinder activated");
+  broadcastState();
 }
 
 void RouterController::deactivatePushCylinder() {
+  noInterrupts();
   digitalWrite(PUSH_CYLINDER_PIN, LOW);
   pushCylinderState = false;
+  delayMicroseconds(500);  // Let EMI settle
+  interrupts();
+
+  delay(10);
   Serial.println("DEBUG: Push cylinder deactivated");
   broadcastState();
 }

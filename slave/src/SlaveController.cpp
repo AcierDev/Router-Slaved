@@ -4,7 +4,7 @@
 #define BOOT_COUNT_ADDR 0
 #define HEARTBEAT_INTERVAL 1000  // Send heartbeat every 1 second
 
-#include <esp_task_wdt.h>
+#include <esp_system.h>
 
 SlaveController* SlaveController::instance = nullptr;
 
@@ -54,25 +54,55 @@ SlaveController::SlaveController() : currentStatus(Status::IDLE) {
 }
 
 void SlaveController::setup() {
+  // Add power stabilization delay on boot
+  delay(100);  // Let power stabilize
   Serial.begin(BAUD_RATE);
   router.setup();
-
-  // Configure watchdog
-  esp_task_wdt_init(5, true);  // 5 second timeout
-  esp_task_wdt_add(NULL);
 }
 
 void SlaveController::loop() {
   unsigned long currentTime = millis();
 
-  // Send heartbeat
-  if (currentTime - lastHeartbeatTime >= HEARTBEAT_INTERVAL) {
-    sendHeartbeat();
-    lastHeartbeatTime = currentTime;
+  // Add watchdog for serial connection
+  static unsigned long lastSerialCheck = 0;
+  if (currentTime - lastSerialCheck >= 5000) {  // Check every 5 seconds
+    if (!Serial) {
+      Serial.end();
+      delay(100);
+      Serial.begin(BAUD_RATE);
+      Serial.println("DEBUG: Serial connection reinitialized");
+    }
+    lastSerialCheck = currentTime;
   }
 
-  // Pat the watchdog
-  esp_task_wdt_reset();
+  // Add memory monitoring
+  static unsigned long lastMemCheck = 0;
+  if (currentTime - lastMemCheck >= 10000) {  // Check every 10 seconds
+    Serial.printf("DEBUG: Free heap: %d, Largest block: %d\n",
+                  ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+    lastMemCheck = currentTime;
+  }
+
+  // Send heartbeat with more debug info
+  if (currentTime - lastHeartbeatTime >= HEARTBEAT_INTERVAL) {
+    // Add more diagnostic info to heartbeat
+    StaticJsonDocument<200> doc;
+    doc["type"] = "heartbeat";
+    doc["uptime"] = millis();
+    doc["boot_count"] = bootCount;
+    doc["free_heap"] = ESP.getFreeHeap();
+    doc["router_state"] = routerStateToString(router.getState());
+    doc["last_error"] = esp_reset_reason();
+    doc["cycle_count"] =
+        router.getCycleCount();  // Add this to RouterController
+    doc["last_cycle_time"] =
+        router.getLastCycleTime();  // Add this to RouterController
+
+    String output;
+    serializeJson(doc, output);
+    Serial.println("HEARTBEAT " + output);
+    lastHeartbeatTime = currentTime;
+  }
 
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
@@ -173,10 +203,13 @@ void SlaveController::sendError(const String& message) {
 }
 
 void SlaveController::sendHeartbeat() {
-  StaticJsonDocument<100> doc;
+  StaticJsonDocument<200> doc;  // Increased buffer size
   doc["type"] = "heartbeat";
   doc["uptime"] = millis();
   doc["boot_count"] = bootCount;
+  doc["free_heap"] = ESP.getFreeHeap();
+  doc["router_state"] = routerStateToString(router.getState());
+  doc["last_error"] = esp_reset_reason();
 
   String output;
   serializeJson(doc, output);

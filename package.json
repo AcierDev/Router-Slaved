@@ -7,7 +7,9 @@
   "main": "master/src/master.ts",
   "scripts": {
     "start": "node --loader ts-node/esm master/src/master.ts",
-    "retardmode": "tsc && node master/dist/master.js"
+    "retardmode": "tsc && node master/dist/master.js",
+    "upload-slave": "node --experimental-modules scripts/uploadSlave.js",
+    "verify-slave": "node --experimental-modules scripts/uploadSlave.js --verify-only"
   },
   "type": "module",
   "keywords": [],

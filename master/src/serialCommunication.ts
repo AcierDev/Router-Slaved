@@ -81,7 +81,54 @@ export class SerialCommunication {
       throw new Error("Serial parser not initialized");
     }
 
+    // Add error handling for parser
+    this.parser.on("error", (error) => {
+      console.error(chalk.red("Parser error:"), error);
+      this.emit("error", `Parser error: ${error.message}`);
+    });
+
+    // Add monitoring for data flow
+    let lastDataTime = Date.now();
+    let missedHeartbeats = 0;
+    const MAX_MISSED_HEARTBEATS = 3;
+    const HEARTBEAT_CHECK_INTERVAL = 1000;
+
+    const monitoringInterval = setInterval(() => {
+      const currentTime = Date.now();
+      const timeSinceLastData = currentTime - lastDataTime;
+      const timeSinceLastHeartbeat = currentTime - this.lastHeartbeatTime;
+
+      if (timeSinceLastData > 10000) {
+        console.error(chalk.red("No data received for 10 seconds"));
+        this.emit("warning", "No data received from slave for 10 seconds");
+      }
+
+      if (
+        this.lastHeartbeatTime !== 0 &&
+        timeSinceLastHeartbeat > this.heartbeatTimeout
+      ) {
+        missedHeartbeats++;
+        console.log(chalk.yellow(`⚠️ Missed heartbeat #${missedHeartbeats}`));
+
+        if (missedHeartbeats >= MAX_MISSED_HEARTBEATS) {
+          console.log(
+            chalk.red("Connection appears dead, attempting reconnection...")
+          );
+          this.attemptReconnection();
+          missedHeartbeats = 0;
+        }
+      } else {
+        missedHeartbeats = 0;
+      }
+    }, HEARTBEAT_CHECK_INTERVAL);
+
+    // Clean up interval on port close
+    this.port?.on("close", () => {
+      clearInterval(monitoringInterval);
+    });
+
     this.parser.on("data", (data: string) => {
+      lastDataTime = Date.now();
       if (data.startsWith("HEARTBEAT")) {
         try {
           const heartbeatData = JSON.parse(data.slice(9));
@@ -115,15 +162,13 @@ export class SerialCommunication {
 
     // Handle port errors
     this.port?.on("error", (error) => {
-      console.error(chalk.red("Serial port error:", error));
+      console.error(chalk.red("Serial port error:"), error);
       this.emit("error", `Serial port error: ${error.message}`);
-    });
 
-    // Handle port closing
-    this.port?.on("close", () => {
-      console.log(chalk.yellow("Serial port closed"));
-      this.emit("warning", "Serial port closed unexpectedly");
-      this.cleanup();
+      // Attempt recovery on certain errors
+      if (error.message.includes("Resource temporarily unavailable")) {
+        setTimeout(() => this.attemptReconnection(), 2000);
+      }
     });
   }
 
@@ -134,13 +179,19 @@ export class SerialCommunication {
     }
 
     if (this.port?.isOpen) {
-      this.port.close((err) => {
-        if (err) {
-          console.error(chalk.red("Error closing port:", err));
-        }
-      });
+      try {
+        // Use close() with a drain first
+        this.port.drain(() => {
+          this.port?.close();
+        });
+      } catch (error) {
+        console.error(chalk.yellow("Warning during port cleanup:"), error);
+      }
     }
 
+    // Clear references
+    this.port = null;
+    this.parser = null;
     this.lastHeartbeatTime = 0;
     this.bootCount = 0;
   }
@@ -221,5 +272,32 @@ export class SerialCommunication {
 
   getPort(): SerialPort | null {
     return this.port;
+  }
+
+  async attemptReconnection(): Promise<void> {
+    console.log(chalk.yellow("Attempting to reconnect..."));
+
+    // Properly cleanup existing connection first
+    this.cleanup();
+
+    // Wait a moment for the port to be released
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    try {
+      // Attempt to connect
+      const connected = await this.connect();
+      if (!connected) {
+        throw new Error("Reconnection failed");
+      }
+    } catch (error) {
+      console.error(chalk.red("Reconnection failed:"), error);
+      // Don't throw, just emit the error event
+      this.emit(
+        "error",
+        `Reconnection failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 }

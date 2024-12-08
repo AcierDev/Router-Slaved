@@ -40,6 +40,9 @@ class RouterController {
 
   Bounce sensor1Debouncer;
 
+  unsigned long cycleCount = 0;
+  unsigned long lastCycleTime = 0;
+
   void updateState();
   void startCycle();
   void activatePushCylinder();
@@ -80,4 +83,7 @@ class RouterController {
   void (*onStateChange)() =
       nullptr;  // Function pointer for state change callback
   void setStateChangeCallback(void (*callback)()) { onStateChange = callback; }
+
+  unsigned long getCycleCount() const { return cycleCount; }
+  unsigned long getLastCycleTime() const { return lastCycleTime; }
 };

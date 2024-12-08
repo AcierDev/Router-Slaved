@@ -23,6 +23,10 @@ async function imageToBase64(imagePath: string): Promise<string> {
   return imageBuffer.toString("base64");
 }
 
+interface MasterOptions {
+  uploadSlaveOnStart?: boolean;
+}
+
 export class Master {
   private serial: SerialCommunication;
   private wss: WebSocketServer;
@@ -33,8 +37,9 @@ export class Master {
   private analysisService: AnalysisService;
   private cliHandler: CLIHandler;
   private statsManager: StatsManager;
+  private options: MasterOptions;
 
-  constructor() {
+  constructor(options: MasterOptions = {}) {
     this.serial = new SerialCommunication();
     this.wss = new WebSocketServer(8080);
     this.settingsManager = new SettingsManager("./settings.json");
@@ -58,22 +63,33 @@ export class Master {
     this.cliHandler = new CLIHandler(
       this.settingsManager,
       this.serial,
-      this.wss
+      this.wss,
+      this
     );
+
+    this.options = {
+      uploadSlaveOnStart: false,
+      ...options,
+    };
   }
 
   async init(): Promise<void> {
     console.log("Initializing master...");
+
+    // Only verify PlatformIO is installed
     if (!(await this.platformIO.verifyPlatformIO())) {
       throw new Error("PlatformIO CLI is required but not found");
     }
 
-    const uploaded = await this.platformIO.uploadCode();
-    if (!uploaded) {
-      throw new Error("Failed to upload slave code");
+    // Only upload slave code if explicitly enabled
+    if (this.options.uploadSlaveOnStart) {
+      console.log(chalk.cyan("📤 Uploading slave code..."));
+      const uploaded = await this.platformIO.uploadCode();
+      if (!uploaded) {
+        throw new Error("Failed to upload slave code");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     await this.settingsManager.loadSettings();
     console.log(chalk.green("✓ Settings loaded successfully"));
@@ -161,6 +177,7 @@ export class Master {
     });
 
     this.serial.onRawData((data: string) => {
+      console.log(chalk.gray(`Raw data: ${data}`));
       if (data.includes("SLAVE_REQUEST ANALYSIS_START")) {
         this.handleAnalysisRequest();
       } else if (data.includes("SLAVE_REQUEST NON_ANALYSIS_CYCLE")) {
@@ -200,17 +217,37 @@ export class Master {
 
   private async attemptReconnection(): Promise<void> {
     console.log(chalk.yellow("Attempting to reconnect to microcontroller..."));
-    let connected = false;
-    while (!connected) {
-      connected = await this.serial.connect();
-      if (!connected) {
-        console.log(chalk.red("Reconnection failed. Retrying in 5 seconds..."));
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+    let reconnectAttempts = 0;
+    const maxAttempts = 5;
+
+    while (reconnectAttempts < maxAttempts) {
+      reconnectAttempts++;
+      console.log(
+        chalk.cyan(`Reconnection attempt ${reconnectAttempts}/${maxAttempts}`)
+      );
+
+      try {
+        const connected = await this.serial.connect();
+        if (connected) {
+          console.log(chalk.green("✓ Reconnected to microcontroller"));
+          this.setupSerialListeners();
+          this.sendInitialSettings();
+          return;
+        }
+      } catch (error) {
+        console.error(chalk.red("Reconnection attempt failed:"), error);
       }
+
+      // Increasing backoff delay
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+      console.log(
+        chalk.yellow(`Waiting ${delay / 1000} seconds before next attempt...`)
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
-    console.log(chalk.green("Reconnected to microcontroller"));
-    this.setupSerialListeners();
-    this.sendInitialSettings();
+
+    console.error(chalk.red("Failed to reconnect after maximum attempts"));
+    throw new Error("Failed to reconnect to microcontroller");
   }
 
   private async handleAnalysisRequest(): Promise<void> {
@@ -413,6 +450,12 @@ export class Master {
     } catch (error) {
       console.error(chalk.red("Error recording non-analysis cycle:"), error);
     }
+  }
+
+  // Add method to manually trigger slave upload
+  async uploadSlave(): Promise<boolean> {
+    console.log(chalk.cyan("📤 Uploading slave code..."));
+    return await this.platformIO.uploadCode();
   }
 }
 
